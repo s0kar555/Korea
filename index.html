@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>موقعي - تحويل العملة وتتبع المصروفات</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0ea5e9"/>
+  <link rel="icon" href="icons/icon-192.png" />
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Naskh Arabic UI", "Noto Sans Arabic", Tahoma, Arial; }
+    .card { @apply bg-white rounded-2xl shadow p-5 border border-slate-100; }
+    .btn  { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium border border-slate-200 hover:bg-slate-50 active:scale-[0.99] transition; }
+    .btn-primary { @apply bg-sky-600 text-white border-sky-600 hover:bg-sky-700; }
+    .chip { @apply inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm; }
+    .input { @apply w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400; }
+    .label { @apply text-sm text-slate-600 mb-1; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+  <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="icons/icon-192.png" class="w-8 h-8 rounded" alt="Logo">
+        <h1 class="text-lg font-bold">موقعي الشخصي — تحويل العملة وتتبع المصروفات</h1>
+      </div>
+      <nav class="flex items-center gap-2">
+        <button id="nav-login"      class="btn"        data-route="login">تسجيل الدخول</button>
+        <button id="nav-converter"  class="btn"        data-route="converter">تحويل العملة</button>
+        <button id="nav-finance"    class="btn"        data-route="finance">المصروفات والدخل</button>
+        <button id="nav-sync"       class="btn"        data-route="sync">المزامنة</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 my-6">
+    <!-- Alerts -->
+    <div id="app-alert" class="hidden mb-4 p-4 rounded-xl text-sm"></div>
+
+    <!-- Login Card -->
+    <section id="view-login" class="card">
+      <h2 class="text-xl font-bold mb-2">تسجيل الدخول</h2>
+      <p class="text-slate-600 mb-4">ادخل اسم المستخدم وكلمة المرور الثابتة للدخول.</p>
+      <form id="login-form" class="grid gap-3 max-w-md">
+        <div>
+          <label class="label">اسم المستخدم</label>
+          <input id="username" class="input" placeholder="اكتب اسم المستخدم" autocomplete="username">
+        </div>
+        <div>
+          <label class="label">كلمة المرور</label>
+          <input id="password" type="password" class="input" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-primary" type="submit">دخول</button>
+          <button id="logout" class="btn" type="button">تسجيل الخروج</button>
+        </div>
+        <p class="text-xs text-slate-500">المعلومات الثابتة: اسم المستخدم <span class="chip">bayan</span> / كلمة المرور <span class="chip">5561742</span></p>
+      </form>
+    </section>
+
+    <!-- Converter -->
+    <section id="view-converter" class="card hidden">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-bold">محول العملات (ريال سعودي — وون كوري — دولار أمريكي)</h2>
+        <span class="chip" id="rate-stamp">معدلات افتراضية</span>
+      </div>
+      <div class="grid md:grid-cols-3 gap-4">
+        <div>
+          <label class="label">المبلغ بالريال السعودي (SAR)</label>
+          <input id="sar" class="input" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div>
+          <label class="label">المبلغ بالوون الكوري (KRW)</label>
+          <input id="krw" class="input" inputmode="decimal" placeholder="0">
+        </div>
+        <div>
+          <label class="label">المبلغ بالدولار (USD)</label>
+          <input id="usd" class="input" inputmode="decimal" placeholder="0.00">
+        </div>
+      </div>
+      <div class="mt-4 grid md:grid-cols-3 gap-4">
+        <div class="col-span-2">
+          <p class="text-slate-600 text-sm mb-2">تعديل أسعار الصرف (اختياري):</p>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div><label class="label">1 USD = <input id="rate-usd-krw" class="input" value="1350"> KRW</label></div>
+            <div><label class="label">1 USD = <input id="rate-usd-sar" class="input" value="3.75"> SAR</label></div>
+            <div><label class="label">1 SAR = <input id="rate-sar-krw" class="input" value="360"> KRW</label></div>
+          </div>
+        </div>
+        <div class="flex items-end gap-2">
+          <button id="save-rates" class="btn">حفظ الأسعار</button>
+          <button id="reset-rates" class="btn">إعادة الافتراضي</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Finance -->
+    <section id="view-finance" class="card hidden">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-bold">تتبع المصروفات والدخل</h2>
+        <div class="text-sm text-slate-500">تعمل بدون إنترنت — المزامنة الاختيارية لاحقًا</div>
+      </div>
+
+      <form id="tx-form" class="grid md:grid-cols-6 gap-3">
+        <div>
+          <label class="label">النوع</label>
+          <select id="tx-type" class="input">
+            <option value="expense">مصروف</option>
+            <option value="income">دخل</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">المبلغ</label>
+          <input id="tx-amount" class="input" inputmode="decimal" placeholder="0.00" required>
+        </div>
+        <div>
+          <label class="label">العملة</label>
+          <select id="tx-currency" class="input">
+            <option value="SAR">SAR</option>
+            <option value="KRW">KRW</option>
+            <option value="USD">USD</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">التصنيف</label>
+          <input id="tx-category" class="input" list="cats" placeholder="مثل: طعام، نقل، تسوق...">
+          <datalist id="cats">
+            <option value="طعام"></option>
+            <option value="نقل"></option>
+            <option value="تسوق"></option>
+            <option value="إقامة"></option>
+            <option value="هدايا"></option>
+            <option value="ترفيه"></option>
+            <option value="اتصالات"></option>
+          </datalist>
+        </div>
+        <div>
+          <label class="label">التاريخ</label>
+          <input id="tx-date" type="date" class="input" />
+        </div>
+        <div>
+          <label class="label">ملاحظات</label>
+          <input id="tx-note" class="input" placeholder="ملاحظة (اختياري)">
+        </div>
+        <div class="md:col-span-6 flex items-center gap-2">
+          <button class="btn btn-primary" type="submit">إضافة</button>
+          <button id="tx-clear" class="btn" type="button">تفريغ الحقول</button>
+        </div>
+      </form>
+
+      <div class="mt-6">
+        <div class="flex flex-wrap gap-2 items-center mb-3">
+          <span class="chip">الملخص</span>
+          <span id="summary" class="text-slate-700 text-sm">—</span>
+        </div>
+
+        <div class="overflow-auto border rounded-2xl">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-100">
+              <tr>
+                <th class="p-2">#</th>
+                <th class="p-2">النوع</th>
+                <th class="p-2">المبلغ</th>
+                <th class="p-2">العملة</th>
+                <th class="p-2">التصنيف</th>
+                <th class="p-2">التاريخ</th>
+                <th class="p-2">ملاحظات</th>
+                <th class="p-2">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="tx-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sync -->
+    <section id="view-sync" class="card hidden">
+      <h2 class="text-xl font-bold mb-2">المزامنة مع Supabase (اختياري)</h2>
+      <p class="text-slate-600 mb-3">املأ الإعدادات أدناه لتفعيل النسخ الاحتياطي والسحب/الدفع من قاعدة البيانات.</p>
+
+      <form id="sb-form" class="grid md:grid-cols-3 gap-3">
+        <div>
+          <label class="label">SUPABASE_URL</label>
+          <input id="sb-url" class="input" placeholder="https://YOUR-PROJECT.supabase.co">
+        </div>
+        <div>
+          <label class="label">SUPABASE_ANON_KEY</label>
+          <input id="sb-key" class="input" placeholder="ey...">
+        </div>
+        <div>
+          <label class="label">بريد المستخدم في Supabase</label>
+          <input id="sb-email" class="input" placeholder="مثال: bayan@example.com">
+        </div>
+        <div>
+          <label class="label">كلمة المرور (Supabase)</label>
+          <input id="sb-pass" class="input" type="password" placeholder="••••••••">
+        </div>
+        <div class="flex items-end">
+          <button class="btn btn-primary" type="submit">حفظ وتسجيل الدخول</button>
+        </div>
+      </form>
+
+      <div class="mt-4 flex items-center gap-2">
+        <button id="btn-push" class="btn">رفع البيانات (Push)</button>
+        <button id="btn-pull" class="btn">سحب البيانات (Pull)</button>
+        <button id="btn-logout-sb" class="btn">تسجيل خروج Supabase</button>
+      </div>
+
+      <p class="text-xs text-slate-500 mt-3">تلميح: لأمان أعلى، اجعل قاعدة البيانات خاصة بحسابك وأنشئ مستخدمًا واحدًا.</p>
+    </section>
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-4 my-8 text-center text-xs text-slate-500">
+    يعمل بدون إنترنت (PWA). آخر تحديث: <span id="build-date"></span>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js'));
+    }
+  </script>
+</body>
+</html>
