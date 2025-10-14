@@ -3,225 +3,291 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>موقعي - تحويل العملة وتتبع المصروفات</title>
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0ea5e9"/>
-  <link rel="icon" href="icons/icon-192.png" />
-  <!-- Tailwind (CDN) -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>محول العملات</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Naskh Arabic UI", "Noto Sans Arabic", Tahoma, Arial; }
-    .card { @apply bg-white rounded-2xl shadow p-5 border border-slate-100; }
-    .btn  { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium border border-slate-200 hover:bg-slate-50 active:scale-[0.99] transition; }
-    .btn-primary { @apply bg-sky-600 text-white border-sky-600 hover:bg-sky-700; }
-    .chip { @apply inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm; }
-    .input { @apply w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400; }
-    .label { @apply text-sm text-slate-600 mb-1; }
+    :root{
+      --bg:#fafafa; --card:#ffffff; --text:#111111;
+      --muted:#6b7280; --border:#e5e7eb; --accent:#93c5fd; --radius:16px;
+      --maxw:420px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Naskh Arabic UI", Tahoma, Arial, sans-serif;
+      line-height:1.6;
+    }
+    .wrap{ min-height:100vh; display:flex; justify-content:center; align-items:flex-start; max-width:560px; margin:0 auto; padding:32px 16px; }
+    .card{
+      width:100%; background:var(--card); border:1px solid var(--border);
+      border-radius:var(--radius); padding:20px; box-shadow: 0 6px 24px rgba(0,0,0,0.04); text-align:center;
+    }
+    h1{ font-size:1.25rem; margin:0 0 12px; letter-spacing:0.2px; text-align:center; }
+    .field{ display:flex; flex-direction:column; gap:8px; margin:14px 0; align-items:center; }
+    label{ font-size:0.95rem; text-align:center; width:100%; max-width:var(--maxw); }
+    .input{
+      display:flex; align-items:center; gap:10px;
+      border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:transparent;
+      transition: box-shadow .15s ease, border-color .15s ease, background-color .15s ease;
+      width:100%; max-width:var(--maxw); justify-content:center;
+    }
+    .input:focus-within{
+      border-color: var(--accent);
+      box-shadow: 0 4px 16px rgba(147,197,253,0.16);
+      background-color: rgba(147,197,253,0.02);
+    }
+    .input input{
+      border:none; outline:none; width:100%; font-size:1.15rem; background:transparent; color:inherit;
+      -webkit-appearance: none; appearance: none; text-align:center;
+    }
+    .code{ font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:0.9rem; color:var(--muted) }
+    .row{ display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; justify-content:center; }
+    .row .btn{
+      width:100%; max-width:var(--maxw);
+      border:1px solid var(--border); background:transparent; color:inherit;
+      border-radius:12px; padding:10px 12px; font-size:0.95rem; cursor:pointer;
+      transition: box-shadow .12s ease, border-color .12s ease, transform .06s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .row .btn:focus, .row .btn:active, .row .btn:hover{
+      border-color: var(--accent);
+      box-shadow: 0 6px 20px rgba(147,197,253,0.14);
+      transform: translateY(-1px);
+      background-color: rgba(147,197,253,0.02);
+      outline: none;
+    }
+    .btn:active{ transform: translateY(0); }
+    @media (max-width:420px){
+      .wrap{ padding:18px 12px; }
+      .input, label { max-width:100%; }
+      .row .btn { flex-basis:100%; }
+    }
   </style>
 </head>
-<body class="bg-slate-50 min-h-screen">
-  <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-slate-200">
-    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <img src="icons/icon-192.png" class="w-8 h-8 rounded" alt="Logo">
-        <h1 class="text-lg font-bold">موقعي الشخصي — تحويل العملة وتتبع المصروفات</h1>
-      </div>
-      <nav class="flex items-center gap-2">
-        <button id="nav-login"      class="btn"        data-route="login">تسجيل الدخول</button>
-        <button id="nav-converter"  class="btn"        data-route="converter">تحويل العملة</button>
-        <button id="nav-finance"    class="btn"        data-route="finance">المصروفات والدخل</button>
-        <button id="nav-sync"       class="btn"        data-route="sync">المزامنة</button>
-      </nav>
-    </div>
-  </header>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1>محول العملات</h1>
 
-  <main class="max-w-6xl mx-auto px-4 my-6">
-    <!-- Alerts -->
-    <div id="app-alert" class="hidden mb-4 p-4 rounded-xl text-sm"></div>
-
-    <!-- Login Card -->
-    <section id="view-login" class="card">
-      <h2 class="text-xl font-bold mb-2">تسجيل الدخول</h2>
-      <p class="text-slate-600 mb-4">ادخل اسم المستخدم وكلمة المرور الثابتة للدخول.</p>
-      <form id="login-form" class="grid gap-3 max-w-md">
-        <div>
-          <label class="label">اسم المستخدم</label>
-          <input id="username" class="input" placeholder="اكتب اسم المستخدم" autocomplete="username">
-        </div>
-        <div>
-          <label class="label">كلمة المرور</label>
-          <input id="password" type="password" class="input" placeholder="••••••••" autocomplete="current-password">
-        </div>
-        <div class="flex items-center gap-2">
-          <button class="btn btn-primary" type="submit">دخول</button>
-          <button id="logout" class="btn" type="button">تسجيل الخروج</button>
-        </div>
-        <p class="text-xs text-slate-500">المعلومات الثابتة: اسم المستخدم <span class="chip">bayan</span> / كلمة المرور <span class="chip">5561742</span></p>
-      </form>
-    </section>
-
-    <!-- Converter -->
-    <section id="view-converter" class="card hidden">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="text-xl font-bold">محول العملات (ريال سعودي — وون كوري — دولار أمريكي)</h2>
-        <span class="chip" id="rate-stamp">معدلات افتراضية</span>
-      </div>
-      <div class="grid md:grid-cols-3 gap-4">
-        <div>
-          <label class="label">المبلغ بالريال السعودي (SAR)</label>
-          <input id="sar" class="input" inputmode="decimal" placeholder="0.00">
-        </div>
-        <div>
-          <label class="label">المبلغ بالوون الكوري (KRW)</label>
-          <input id="krw" class="input" inputmode="decimal" placeholder="0">
-        </div>
-        <div>
-          <label class="label">المبلغ بالدولار (USD)</label>
-          <input id="usd" class="input" inputmode="decimal" placeholder="0.00">
+      <div class="field">
+        <label for="krw">وون كوري (KRW)</label>
+        <div class="input">
+          <input id="krw" type="text" inputmode="numeric" autocomplete="off" />
+          <span class="code">KRW</span>
         </div>
       </div>
-      <div class="mt-4 grid md:grid-cols-3 gap-4">
-        <div class="col-span-2">
-          <p class="text-slate-600 text-sm mb-2">تعديل أسعار الصرف (اختياري):</p>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div><label class="label">1 USD = <input id="rate-usd-krw" class="input" value="1350"> KRW</label></div>
-            <div><label class="label">1 USD = <input id="rate-usd-sar" class="input" value="3.75"> SAR</label></div>
-            <div><label class="label">1 SAR = <input id="rate-sar-krw" class="input" value="360"> KRW</label></div>
-          </div>
-        </div>
-        <div class="flex items-end gap-2">
-          <button id="save-rates" class="btn">حفظ الأسعار</button>
-          <button id="reset-rates" class="btn">إعادة الافتراضي</button>
+
+      <div class="field">
+        <label for="sar">ريال سعودي (SAR)</label>
+        <div class="input">
+          <input id="sar" type="text" inputmode="decimal" autocomplete="off" />
+          <span class="code">SAR</span>
         </div>
       </div>
-    </section>
 
-    <!-- Finance -->
-    <section id="view-finance" class="card hidden">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="text-xl font-bold">تتبع المصروفات والدخل</h2>
-        <div class="text-sm text-slate-500">تعمل بدون إنترنت — المزامنة الاختيارية لاحقًا</div>
-      </div>
-
-      <form id="tx-form" class="grid md:grid-cols-6 gap-3">
-        <div>
-          <label class="label">النوع</label>
-          <select id="tx-type" class="input">
-            <option value="expense">مصروف</option>
-            <option value="income">دخل</option>
-          </select>
-        </div>
-        <div>
-          <label class="label">المبلغ</label>
-          <input id="tx-amount" class="input" inputmode="decimal" placeholder="0.00" required>
-        </div>
-        <div>
-          <label class="label">العملة</label>
-          <select id="tx-currency" class="input">
-            <option value="SAR">SAR</option>
-            <option value="KRW">KRW</option>
-            <option value="USD">USD</option>
-          </select>
-        </div>
-        <div>
-          <label class="label">التصنيف</label>
-          <input id="tx-category" class="input" list="cats" placeholder="مثل: طعام، نقل، تسوق...">
-          <datalist id="cats">
-            <option value="طعام"></option>
-            <option value="نقل"></option>
-            <option value="تسوق"></option>
-            <option value="إقامة"></option>
-            <option value="هدايا"></option>
-            <option value="ترفيه"></option>
-            <option value="اتصالات"></option>
-          </datalist>
-        </div>
-        <div>
-          <label class="label">التاريخ</label>
-          <input id="tx-date" type="date" class="input" />
-        </div>
-        <div>
-          <label class="label">ملاحظات</label>
-          <input id="tx-note" class="input" placeholder="ملاحظة (اختياري)">
-        </div>
-        <div class="md:col-span-6 flex items-center gap-2">
-          <button class="btn btn-primary" type="submit">إضافة</button>
-          <button id="tx-clear" class="btn" type="button">تفريغ الحقول</button>
-        </div>
-      </form>
-
-      <div class="mt-6">
-        <div class="flex flex-wrap gap-2 items-center mb-3">
-          <span class="chip">الملخص</span>
-          <span id="summary" class="text-slate-700 text-sm">—</span>
-        </div>
-
-        <div class="overflow-auto border rounded-2xl">
-          <table class="min-w-full text-sm">
-            <thead class="bg-slate-100">
-              <tr>
-                <th class="p-2">#</th>
-                <th class="p-2">النوع</th>
-                <th class="p-2">المبلغ</th>
-                <th class="p-2">العملة</th>
-                <th class="p-2">التصنيف</th>
-                <th class="p-2">التاريخ</th>
-                <th class="p-2">ملاحظات</th>
-                <th class="p-2">إجراءات</th>
-              </tr>
-            </thead>
-            <tbody id="tx-body"></tbody>
-          </table>
+      <div class="field">
+        <label for="usd">دولار أمريكي (USD)</label>
+        <div class="input">
+          <input id="usd" type="text" inputmode="decimal" autocomplete="off" />
+          <span class="code">USD</span>
         </div>
       </div>
-    </section>
-
-    <!-- Sync -->
-    <section id="view-sync" class="card hidden">
-      <h2 class="text-xl font-bold mb-2">المزامنة مع Supabase (اختياري)</h2>
-      <p class="text-slate-600 mb-3">املأ الإعدادات أدناه لتفعيل النسخ الاحتياطي والسحب/الدفع من قاعدة البيانات.</p>
-
-      <form id="sb-form" class="grid md:grid-cols-3 gap-3">
-        <div>
-          <label class="label">SUPABASE_URL</label>
-          <input id="sb-url" class="input" placeholder="https://YOUR-PROJECT.supabase.co">
-        </div>
-        <div>
-          <label class="label">SUPABASE_ANON_KEY</label>
-          <input id="sb-key" class="input" placeholder="ey...">
-        </div>
-        <div>
-          <label class="label">بريد المستخدم في Supabase</label>
-          <input id="sb-email" class="input" placeholder="مثال: bayan@example.com">
-        </div>
-        <div>
-          <label class="label">كلمة المرور (Supabase)</label>
-          <input id="sb-pass" class="input" type="password" placeholder="••••••••">
-        </div>
-        <div class="flex items-end">
-          <button class="btn btn-primary" type="submit">حفظ وتسجيل الدخول</button>
-        </div>
-      </form>
-
-      <div class="mt-4 flex items-center gap-2">
-        <button id="btn-push" class="btn">رفع البيانات (Push)</button>
-        <button id="btn-pull" class="btn">سحب البيانات (Pull)</button>
-        <button id="btn-logout-sb" class="btn">تسجيل خروج Supabase</button>
+<br>
+      <div class="row">
+        <button id="clear" class="btn" title="تفريغ القيم">تفريغ</button>
       </div>
-
-      <p class="text-xs text-slate-500 mt-3">تلميح: لأمان أعلى، اجعل قاعدة البيانات خاصة بحسابك وأنشئ مستخدمًا واحدًا.</p>
     </section>
   </main>
 
-  <footer class="max-w-6xl mx-auto px-4 my-8 text-center text-xs text-slate-500">
-    يعمل بدون إنترنت (PWA). آخر تحديث: <span id="build-date"></span>
-  </footer>
-
-  <script type="module" src="js/app.js"></script>
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js'));
+    // معدلات ثابتة
+    const rates = { base:'SAR', SAR:1, USD:0.2667, KRW:380 };
+
+    const els = {
+      krw: document.getElementById('krw'),
+      sar: document.getElementById('sar'),
+      usd: document.getElementById('usd'),
+      clear: document.getElementById('clear'),
+    };
+
+    // منسق الأرقام: en-US => فواصل آلاف بالـ"," ونقطة للعشرية
+    const nf2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const nf0 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+    let updating = false;
+
+    // تنظيف النص: حذف أي حرف غير رقمي أو نقطة
+    function cleanRaw(text){
+      if (text == null) return '';
+      // استبدال الفاصلة العربية بالفاصلة الإنجليزية، ثم إزالة كل شيء عدا 0-9 و.
+      return String(text).replace(/،/g, '.').replace(/,/g, '').replace(/[^\d.]/g, '');
     }
+
+    // تحويل النص إلى رقم (عدد) أو NaN
+    function toNumber(text){
+      const cleaned = cleanRaw(text).trim();
+      if (cleaned === '') return NaN;
+      return parseFloat(cleaned);
+    }
+
+    // تنسيق للعرض حسب العملة
+    function formatFor(code, num){
+      if (!Number.isFinite(num)) {
+        // إن لم يكن رقمًا، نعرض 0.00 لـ SAR/USD بحسب طلبك؟ أفضل أن نعرض فارغ
+        if (code === 'KRW') return '';
+        return '';
+      }
+      if (code === 'KRW') return nf0.format(Math.round(num));
+      return nf2.format(Number(num)); // دائما نقطتان
+    }
+
+    // --- دالة تحافظ على موضع المؤشر عند إعادة التنسيق ---
+    // قبل التنسيق: نحسب "مؤشر الأرقام" (count of digits and dot) إلى يسار الكيرسور
+    // بعد التنسيق: نضع الكيرسور بعد نفس عدد الأحرف الرقمية/نقطة في النص المنسق.
+    function preserveCaretAndFormat(el, code){
+      // احصل على الموضع الحالي (بعد التغيير)
+      const selStart = el.selectionStart ?? el.value.length;
+      const raw = el.value;
+      // حساب عدد الأحرف الرقمية والنقطة إلى يسار المؤشر في النص الخام
+      const leftPart = raw.slice(0, selStart);
+      const leftCount = (leftPart.match(/[\d.]/g) || []).length;
+
+      // حساب الرقم من النص الخام
+      const num = toNumber(raw);
+      // إذا ليس رقمًا، اترك الحقل فارغ (ما نعرض 0 تلقائيًا) — لكن لو المستخدم أدخل نقطتين أو شي، نحاول استيعاب
+      if (!Number.isFinite(num)) {
+        // ببساطة امسح أي حروف غير مسموح بها واحتفظ بما يكتب
+        const cleaned = cleanRaw(raw);
+        el.value = cleaned;
+        // وضع المؤشر: بعد نفس عدد الأحرف الرقمية (على الأقل)
+        try {
+          const pos = Math.min(cleaned.length, leftCount);
+          el.setSelectionRange(pos, pos);
+        } catch {}
+        return;
+      }
+
+      // تنسيق للعرض
+      const formatted = formatFor(code, num);
+
+      // الآن نحتاج أن نحدد موضع الكيرسور في النص المنسق
+      // نمر عبر formatted ونعد الأحرف الرقمية والنقطة حتى نصل لعدد leftCount
+      let count = 0, newPos = formatted.length;
+      if (leftCount === 0) newPos = 0;
+      else {
+        newPos = formatted.length; // افتراضي: نهاية النص
+        for (let i=0; i<formatted.length; i++){
+          if (/[\d.]/.test(formatted[i])) count++;
+          if (count === leftCount){
+            newPos = i + 1; // ضع المؤشر بعد هذا الحرف
+            break;
+          }
+        }
+      }
+
+      // تعيين القيمة المنسقة وموضع المؤشر
+      el.value = formatted;
+      try { el.setSelectionRange(newPos, newPos); } catch {}
+    }
+
+    // التحويل من حقل محدد إلى الحقول الأخرى (المدخل هنا رقم خام)
+    function convert(fromId, rawNumber){
+      if (!Number.isFinite(rawNumber)) return;
+      const code = fromId.toUpperCase(); // 'KRW'|'SAR'|'USD'
+      const rateFrom = rates[code];
+      if (!rateFrom) return;
+
+      const inSAR = (code === 'SAR') ? rawNumber : (rawNumber / rateFrom);
+      const toUSD = inSAR * rates.USD;
+      const toKRW = inSAR * rates.KRW;
+
+      // حط القيم المنسقة دائماً (لكن لا تلمس الحقل المصدر هنا — سندع preserveCaret تعتني)
+      updating = true;
+      if (fromId !== 'sar') els.sar.value = formatFor('SAR', inSAR);
+      if (fromId !== 'usd') els.usd.value = formatFor('USD', toUSD);
+      if (fromId !== 'krw') els.krw.value = formatFor('KRW', toKRW);
+      updating = false;
+    }
+
+    // المعالج العام لكل حقل: ينسق ويحافظ على المؤشر ثم يحول
+    function onInputHandler(e){
+      if (updating) return;
+      const el = e.target;
+      const id = el.id; // 'krw' | 'sar' | 'usd'
+      const code = id.toUpperCase();
+
+      // نحتفظ بمحتوى قبل التنسيق
+      preserveCaretAndFormat(el, code);
+
+      // نحسب الرقم بعد التنسيق (من الحقل المنسق)
+      const num = toNumber(el.value);
+      if (!Number.isFinite(num)){
+        // لو المستخدم مسح الحقل: نفرّغ الباقي
+        if (el.value.trim() === '') {
+          updating = true;
+          els.sar.value = ''; els.krw.value = ''; els.usd.value = '';
+          updating = false;
+        }
+        return;
+      }
+
+      // تحويل وعرض القيم الأخرى (منسقة)
+      convert(id, num);
+    }
+
+    // منع إدخال أحرف غير مسموح بها على مستوى الكي داون (مع السماح بالتحكم والحذف والأسهم)
+    function restrictKeys(e){
+      const allowed = ['Backspace','Tab','ArrowLeft','ArrowRight','Delete','Home','End'];
+      if (allowed.includes(e.key)) return;
+      // السماح بالنسخ/لصق بلوحة مفاتيح (Ctrl/Cmd) — لا نمنع عندما modifier
+      if (e.ctrlKey || e.metaKey) return;
+      // السماح بالأرقام والنقطة والفاصلة العربية/إنجليزية
+      if (/^[0-9]$/.test(e.key)) return;
+      if (e.key === '.' || e.key === ',' || e.key === '،') return;
+      // أي مفتاح آخر نمنعه
+      e.preventDefault();
+    }
+
+    // تسجيل المعالجات
+    ['krw','sar','usd'].forEach(id=>{
+      const el = els[id];
+      el.addEventListener('input', onInputHandler);
+      el.addEventListener('keydown', restrictKeys);
+      // عند التركيز — إن لم تكن هناك قيمة نعرض الصيغة الافتراضية (مثلاً 0.00)؟ نتركها فارغة كما طلبت سابقاً
+      el.addEventListener('focus', (e)=>{
+        // لا نغير المحتوى عند الفوكس؛ فقط ضع المؤشر في النهاية
+        setTimeout(()=> {
+          try { e.target.setSelectionRange(e.target.value.length, e.target.value.length); } catch {}
+        },0);
+      });
+      // عند الخروج — نضمن تنسيق نهائي (مهم لو المستخدم أدخل شيء ناقص)
+      el.addEventListener('blur', (e)=>{
+        const code = e.target.id.toUpperCase();
+        const num = toNumber(e.target.value);
+        if (!Number.isFinite(num)){
+          e.target.value = '';
+          // ولا نغيّر الحقول الأخرى هنا
+          return;
+        }
+        // إعادة تنسيق نهائي
+        e.target.value = formatFor(code, num);
+        // إعادة تحويل لتأكيد القيم المتبقية محدثة
+        convert(e.target.id, num);
+      });
+    });
+
+    // زر التفريغ
+    els.clear.addEventListener('click', ()=>{
+      updating = true;
+      els.krw.value = ''; els.sar.value = ''; els.usd.value = '';
+      updating = false;
+      els.krw.focus();
+    });
+
+    // بداية
+    window.addEventListener('DOMContentLoaded', ()=>{
+      els.krw.value = ''; els.sar.value = ''; els.usd.value = '';
+      els.krw.focus();
+    });
   </script>
 </body>
 </html>
