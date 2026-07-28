@@ -596,12 +596,12 @@ function fireSystemNotification(){
   // تشخيص: لو ما ظهر إشعار نظام، نوضّح السبب المرجّح
   if(!systemShown){
     let reason;
-    if(!('Notification' in window)) reason='المتصفح لا يدعم إشعارات الويب';
-    else if(Notification.permission==='default') reason='لم تفعّل الإشعارات بعد — اضغط زر الجرس';
-    else if(Notification.permission==='denied') reason='الإذن مرفوض من إعدادات الجهاز';
-    else if(!isStandalone()) reason='افتح التطبيق من أيقونة الشاشة الرئيسية';
+    if(!('Notification' in window)) reason='متصفحك لا يدعم إشعارات الويب — افتحه من أيقونة الشاشة الرئيسية';
+    else if(!isStandalone()) reason='لازم تفتح التطبيق من أيقونة الشاشة الرئيسية (مو من Safari)';
+    else if(Notification.permission==='denied') reason='الإذن مرفوض — فعّله من إعدادات الآيفون ثم التطبيق';
+    else if(Notification.permission==='default') reason='لم يُمنح الإذن بعد';
     else reason='إشعار النظام غير متاح على هذا الجهاز';
-    setTimeout(()=>showToast('إشعار النظام: '+reason,'bad'),700);
+    setTimeout(()=>showToast('ظهر الإشعار داخل التطبيق فقط — '+reason,'bad'),900);
   }
 }
 function showInAppPush(){
@@ -613,7 +613,18 @@ function showInAppPush(){
 document.getElementById('pushCard').addEventListener('click',function(){this.classList.remove('show');});
 let pushTimer=null;
 function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(()=>{if(SESSION.loggedIn)fireSystemNotification();},10000);}
-function testPush(){fireSystemNotification();}
+function testPush(){
+  // لو الإشعارات غير مفعّلة، اطلب الإذن أولاً ثم أطلق الإشعار
+  if(('Notification' in window) && Notification.permission==='default'){
+    Notification.requestPermission().then(p=>{
+      if(p==='granted'){showToast('تم تفعيل الإشعارات ✓','good');setTimeout(fireSystemNotification,600);}
+      else if(p==='denied'){showToast('الإذن مرفوض — فعّله من إعدادات الآيفون','bad');fireSystemNotification();}
+      else{fireSystemNotification();}
+    });
+    return;
+  }
+  fireSystemNotification();
+}
 
 /* toast */
 let tt;function showToast(m,type){const t=document.getElementById('toast');
