@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="مِشوار — المشتركين">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<title>مِشوار — المشتركين</title>
+<style>
+  :root{
+    --bg:#F4F6FA;--card:#FFFFFF;--ink:#141B2E;--muted:#7B8699;--line:#E7EBF2;
+    --gold:#F5B400;--gold-deep:#E09E00;--green:#12B76A;--green-deep:#0E9B58;
+    --blue:#2E7CF6;--red:#F04452;
+    --shadow:0 12px 34px -14px rgba(20,30,60,.22);--shadow-soft:0 4px 16px -6px rgba(20,30,60,.14);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:"Segoe UI",Tahoma,system-ui,sans-serif;background:var(--bg);color:var(--ink);
+    overflow:hidden;position:fixed;inset:0;user-select:none;-webkit-user-select:none}
+  .app{height:100%;max-width:480px;margin:0 auto;position:relative;overflow:hidden;background:var(--bg)}
+  button,input{font-family:inherit}
+  .screen{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .3s}
+  .screen.active{opacity:1;pointer-events:auto}
+
+  /* LOGIN */
+  #login{display:flex;flex-direction:column;justify-content:center;padding:34px 26px;text-align:center;
+    background:radial-gradient(130% 60% at 50% 0%,#FFF6DE,transparent 55%),var(--bg)}
+  .brand-mark{width:94px;height:94px;margin:0 auto 22px;border-radius:28px;
+    background:linear-gradient(150deg,var(--gold),var(--gold-deep));display:flex;align-items:center;justify-content:center;
+    box-shadow:0 18px 38px -10px rgba(245,180,0,.5)}
+  .brand-mark svg{width:54px;height:54px}
+  .brand-name{font-size:42px;font-weight:800;letter-spacing:-1px}
+  .brand-name span{color:var(--gold-deep)}
+  .brand-sub{color:var(--muted);font-size:14px;margin:6px 0 40px;font-weight:600}
+  .field{text-align:right;margin-bottom:15px}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px;padding-right:4px;font-weight:700}
+  .field input{width:100%;background:var(--card);border:1.5px solid var(--line);color:var(--ink);
+    padding:16px 18px;border-radius:15px;font-size:16px;text-align:right;transition:border .2s;box-shadow:var(--shadow-soft)}
+  .field input:focus{outline:none;border-color:var(--gold)}
+  .field input[type=date]{color-scheme:light}
+  .field input[type=email]{direction:ltr;text-align:right}
+  .btn{width:100%;border:none;font-size:17px;font-weight:800;padding:17px;border-radius:15px;cursor:pointer;transition:transform .1s}
+  .btn:active{transform:scale(.97)}
+  .btn-gold{background:linear-gradient(150deg,var(--gold),var(--gold-deep));color:#3A2C00;margin-top:12px;
+    box-shadow:0 12px 26px -10px rgba(245,180,0,.6)}
+  .login-hint{margin-top:22px;font-size:12.5px;color:var(--muted);line-height:1.8}
+  .login-hint b{color:var(--gold-deep)}
+  .err{color:var(--red);font-size:13px;margin-top:14px;min-height:18px;font-weight:700}
+
+  .header{padding:calc(18px + env(safe-area-inset-top)) 18px 8px;display:flex;align-items:flex-start;justify-content:space-between}
+  .header h2{font-size:24px;font-weight:800}
+  .header p{color:var(--muted);font-size:13px;margin-top:3px}
+  .logout-btn{width:44px;height:44px;border-radius:14px;background:var(--card);border:1px solid var(--line);
+    box-shadow:var(--shadow-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+  .logout-btn svg{width:20px;height:20px;stroke:var(--ink);fill:none}
+
+  .body{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:24px}
+  .body::-webkit-scrollbar{display:none}
+
+  .summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:14px 14px 4px}
+  .sum{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 10px;text-align:center;box-shadow:var(--shadow-soft)}
+  .sum .n{font-size:22px;font-weight:800}
+  .sum .n.ok{color:var(--green-deep)}.sum .n.warn{color:var(--gold-deep)}.sum .n.exp{color:var(--red)}
+  .sum .l{font-size:11px;color:var(--muted);margin-top:2px;font-weight:700}
+
+  .add-bar{margin:12px 14px}
+  .add-bar button{width:100%;padding:15px;border-radius:15px;border:none;font-weight:800;font-size:15px;
+    background:linear-gradient(150deg,var(--gold),var(--gold-deep));color:#3A2C00;
+    display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;box-shadow:0 10px 24px -10px rgba(245,180,0,.6)}
+  .add-bar button:active{transform:scale(.98)}
+  .add-bar button svg{width:19px;height:19px;stroke:#3A2C00;fill:none}
+
+  .search{margin:0 14px 12px;position:relative}
+  .search input{width:100%;background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:13px 16px 13px 42px;font-size:14px;box-shadow:var(--shadow-soft)}
+  .search input:focus{outline:none;border-color:var(--gold)}
+  .search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:18px;height:18px;stroke:var(--muted);fill:none}
+
+  .list{padding:0 14px}
+  .member{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px;margin-bottom:11px;box-shadow:var(--shadow-soft)}
+  .member.paused{opacity:.72}
+  .m-top{display:flex;align-items:center;gap:12px}
+  .m-av{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;color:#fff;flex-shrink:0}
+  .m-name{flex:1;min-width:0}
+  .m-name h4{font-size:15.5px;font-weight:800}
+  .m-name .mail{font-size:11.5px;color:var(--blue);margin-top:2px;direction:ltr;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .m-name .phone{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .m-status{font-size:11px;font-weight:800;padding:6px 12px;border-radius:20px;white-space:nowrap}
+  .m-status.ok{background:rgba(18,183,106,.13);color:var(--green-deep)}
+  .m-status.warn{background:rgba(245,180,0,.15);color:var(--gold-deep)}
+  .m-status.exp{background:rgba(240,68,82,.12);color:var(--red)}
+  .m-status.paused{background:rgba(123,134,153,.15);color:var(--muted)}
+  .m-bar{margin-top:13px;height:8px;background:var(--bg);border-radius:5px;overflow:hidden}
+  .m-bar i{display:block;height:100%;border-radius:5px;transition:width .4s}
+  .m-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-top:12px}
+  .m-cell{background:var(--bg);border-radius:10px;padding:9px 11px}
+  .m-cell .k{font-size:10px;color:var(--muted);font-weight:700}
+  .m-cell .v{font-size:12.5px;font-weight:800;margin-top:2px}
+  .m-cell .v.ok{color:var(--green-deep)}.m-cell .v.warn{color:var(--gold-deep)}.m-cell .v.exp{color:var(--red)}
+  .m-actions{display:flex;gap:8px;margin-top:12px}
+  .m-btn{flex:1;padding:11px;border-radius:12px;border:1px solid var(--line);background:var(--card);
+    font-size:12.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+  .m-btn svg{width:15px;height:15px;fill:none}
+  .m-btn:active{transform:scale(.97)}
+  .m-btn.pause{color:var(--gold-deep)}.m-btn.pause svg{stroke:var(--gold-deep)}
+  .m-btn.resume{color:var(--green-deep)}.m-btn.resume svg{stroke:var(--green-deep)}
+  .m-btn.del{color:var(--red)}.m-btn.del svg{stroke:var(--red)}
+  .empty{text-align:center;color:var(--muted);padding:50px 20px;font-size:14px;line-height:1.7}
+
+  /* MODAL (add) */
+  .modal-bg{position:absolute;inset:0;background:rgba(20,30,60,.4);backdrop-filter:blur(3px);z-index:50;
+    display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
+  .modal-bg.show{opacity:1;pointer-events:auto}
+  .modal{width:100%;max-width:480px;background:var(--card);border-radius:26px 26px 0 0;
+    padding:8px 20px calc(22px + env(safe-area-inset-bottom));transform:translateY(100%);
+    transition:transform .35s cubic-bezier(.2,.8,.25,1);max-height:92vh;overflow-y:auto}
+  .modal::-webkit-scrollbar{display:none}
+  .modal-bg.show .modal{transform:translateY(0)}
+  .grip{width:44px;height:5px;background:var(--line);border-radius:3px;margin:8px auto 18px}
+  .modal h3{font-size:20px;font-weight:800;margin-bottom:3px}
+  .modal .msub{color:var(--muted);font-size:13px;margin-bottom:20px}
+  .quick-dur{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+  .qd{padding:9px 13px;border-radius:11px;border:1.5px solid var(--line);background:var(--bg);cursor:pointer;
+    font-size:12.5px;font-weight:800;color:var(--muted);transition:all .15s}
+  .qd:active{transform:scale(.95)}
+  .qd.sel{border-color:var(--gold);background:rgba(245,180,0,.1);color:var(--gold-deep)}
+  .dur-info{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:16px 0;
+    display:flex;justify-content:space-between;align-items:center;font-size:13px}
+  .dur-info .lbl{color:var(--muted);font-weight:700}
+  .dur-info .val{font-weight:800;color:var(--green-deep)}
+  .dur-info .val.bad{color:var(--red)}
+
+  /* CONFIRM DIALOG */
+  .confirm-bg{position:absolute;inset:0;background:rgba(20,30,60,.45);backdrop-filter:blur(3px);z-index:70;
+    display:flex;align-items:center;justify-content:center;padding:28px;opacity:0;pointer-events:none;transition:opacity .25s}
+  .confirm-bg.show{opacity:1;pointer-events:auto}
+  .confirm{background:var(--card);border-radius:22px;padding:24px 22px;width:100%;max-width:340px;text-align:center;
+    box-shadow:var(--shadow);transform:scale(.9);transition:transform .25s}
+  .confirm-bg.show .confirm{transform:scale(1)}
+  .confirm-ic{width:58px;height:58px;border-radius:50%;background:rgba(240,68,82,.12);display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+  .confirm-ic svg{width:28px;height:28px;stroke:var(--red);fill:none}
+  .confirm h4{font-size:18px;font-weight:800;margin-bottom:8px}
+  .confirm p{font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:22px}
+  .confirm p b{color:var(--ink);font-weight:800}
+  .confirm-row{display:flex;gap:10px}
+  .confirm-row button{flex:1;padding:13px;border-radius:13px;border:none;font-weight:800;font-size:14px;cursor:pointer}
+  .confirm-row .cancel{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+  .confirm-row .delete{background:var(--red);color:#fff}
+  .confirm-row button:active{transform:scale(.97)}
+
+  .toast{position:absolute;bottom:40px;left:50%;transform:translateX(-50%) translateY(20px);z-index:80;
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:14px;font-size:13.5px;font-weight:700;
+    opacity:0;transition:all .3s;box-shadow:var(--shadow);white-space:nowrap;max-width:90vw;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.good{background:var(--green-deep)}.toast.bad{background:var(--red)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- LOGIN -->
+  <section class="screen" id="login">
+    <div class="brand-mark">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 13l1.5-5A2.5 2.5 0 0 1 8 6h8a2.5 2.5 0 0 1 2.5 2L20 13v5a1 1 0 0 1-1 1h-1.5a1 1 0 0 1-1-1v-1h-9v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-5Z" stroke="#3A2C00" stroke-width="1.6" stroke-linejoin="round"/><circle cx="7" cy="15.5" r="1.1" fill="#3A2C00"/><circle cx="17" cy="15.5" r="1.1" fill="#3A2C00"/></svg>
+    </div>
+    <h1 class="brand-name">مِ<span>شوار</span></h1>
+    <p class="brand-sub">لوحة إدارة المشتركين</p>
+    <div class="field"><label>رقم الجوال</label>
+      <input type="tel" id="phone" placeholder="05xxxxxxxx" value="0555123456" inputmode="numeric"></div>
+    <div class="field"><label>الرمز السري</label>
+      <input type="password" id="pass" placeholder="••••••••" value="captain"></div>
+    <button class="btn btn-gold" onclick="doLogin()">تسجيل الدخول</button>
+    <div class="err" id="loginErr"></div>
+    <p class="login-hint">للتجربة: أي رقم يبدأ بـ <b>05</b> والرمز <b>captain</b><br>يبقى دخولك محفوظاً حتى تسجّل الخروج.</p>
+  </section>
+
+  <!-- MEMBERS -->
+  <section class="screen" id="members">
+    <div class="body">
+      <div class="header">
+        <div><h2>إدارة المشتركين</h2><p>اشتراكات الكباتن في النظام</p></div>
+        <div class="logout-btn" onclick="logout()">
+          <svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" stroke-width="1.8" stroke-linecap="round"/><path d="M10 16l-4-4 4-4M6 12h11" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+
+      <div class="summary">
+        <div class="sum"><div class="n ok" id="cntOk">0</div><div class="l">فعّال</div></div>
+        <div class="sum"><div class="n warn" id="cntWarn">0</div><div class="l">قارب الانتهاء</div></div>
+        <div class="sum"><div class="n exp" id="cntExp">0</div><div class="l">منتهي / موقوف</div></div>
+      </div>
+
+      <div class="add-bar">
+        <button onclick="openModal()">
+          <svg viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          إضافة مشترك جديد
+        </button>
+      </div>
+
+      <div class="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <input type="text" id="searchBox" placeholder="ابحث بالاسم أو الجوال أو البريد..." oninput="renderMembers()">
+      </div>
+
+      <div class="list" id="list"></div>
+    </div>
+
+    <!-- ADD MODAL -->
+    <div class="modal-bg" id="modalBg">
+      <div class="modal">
+        <div class="grip"></div>
+        <h3>مشترك جديد</h3>
+        <p class="msub">أدخل بيانات الكابتن وحدّد بداية ونهاية اشتراكه</p>
+        <div class="field"><label>اسم الكابتن</label><input type="text" id="mName" placeholder="مثال: خالد العتيبي"></div>
+        <div class="field"><label>البريد الإلكتروني</label><input type="email" id="mEmail" placeholder="captain@example.com" inputmode="email"></div>
+        <div class="field"><label>رقم الجوال</label><input type="tel" id="mPhone" placeholder="05xxxxxxxx" inputmode="numeric"></div>
+        <div class="field"><label>تاريخ بداية الاشتراك</label><input type="date" id="mStart" onchange="updateDurInfo()"></div>
+        <div class="field"><label>تاريخ انتهاء الاشتراك</label><input type="date" id="mEnd" onchange="updateDurInfo()"></div>
+        <div class="field" style="margin-bottom:8px"><label>تعبئة سريعة للمدة (اختياري)</label>
+          <div class="quick-dur" id="quickDur">
+            <div class="qd" data-d="1">يوم</div>
+            <div class="qd" data-d="2">يومين</div>
+            <div class="qd" data-d="3">3 أيام</div>
+            <div class="qd" data-d="7">أسبوع</div>
+            <div class="qd" data-d="30">شهر</div>
+            <div class="qd" data-d="90">3 أشهر</div>
+            <div class="qd" data-d="180">6 أشهر</div>
+            <div class="qd" data-d="365">سنة</div>
+          </div>
+        </div>
+        <div class="dur-info"><span class="lbl">مدة الاشتراك</span><span class="val" id="durInfo">—</span></div>
+        <button class="btn btn-gold" onclick="addMember()">حفظ المشترك</button>
+        <button class="btn" style="background:transparent;color:var(--muted);margin-top:4px" onclick="closeModal()">إلغاء</button>
+      </div>
+    </div>
+
+    <!-- CONFIRM DELETE -->
+    <div class="confirm-bg" id="confirmBg">
+      <div class="confirm">
+        <div class="confirm-ic">
+          <svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V5h6v2M8 7l1 12h6l1-12" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h4>حذف المشترك</h4>
+        <p>هل أنت متأكد من حذف <b id="confirmName">—</b>؟ لا يمكن التراجع عن هذا الإجراء.</p>
+        <div class="confirm-row">
+          <button class="cancel" onclick="cancelDelete()">إلغاء</button>
+          <button class="delete" onclick="confirmDelete()">حذف نهائي</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </section>
+</div>
+
+<script>
+const SESSION={loggedIn:false};
+const AV_COLORS=["#5B4F9E","#0E9B58","#C0392B","#2E7CF6","#D35400","#8E44AD","#16A085","#B7791F"];
+const DAY=86400000;
+let members=[],pendingDelete=null;
+
+function doLogin(){
+  const p=document.getElementById('phone').value.trim();
+  const pw=document.getElementById('pass').value;
+  const err=document.getElementById('loginErr');
+  if(!/^05\d{7,9}$/.test(p)){err.textContent="أدخل رقم جوال صحيح يبدأ بـ 05";return;}
+  if(pw!=="captain"){err.textContent="الرمز السري غير صحيح";return;}
+  err.textContent="";SESSION.loggedIn=true;enterApp();
+}
+function enterApp(){
+  document.getElementById('login').classList.remove('active');
+  document.getElementById('members').classList.add('active');
+  if(members.length===0)seed();
+  renderMembers();
+}
+function logout(){SESSION.loggedIn=false;
+  document.getElementById('members').classList.remove('active');
+  document.getElementById('login').classList.add('active');}
+
+/* بيانات تجريبية — الآن ببداية ونهاية صريحتين */
+function seed(){
+  const today=new Date();today.setHours(0,0,0,0);
+  const mk=(name,email,phone,startOff,durDays,paused)=>{
+    const s=new Date(today.getTime()-startOff*DAY);
+    const e=new Date(s.getTime()+durDays*DAY);
+    return{id:Date.now()+Math.random(),name,email,phone,start:s,end:e,paused:!!paused};
+  };
+  members=[
+    mk("خالد العتيبي","khaled.otaibi@gmail.com","0551122334",5,90,false),
+    mk("أحمد باعشن","ahmed.baeshen@outlook.com","0509988776",1,2,false),   // فترة تجربة يومين
+    mk("ماجد السبيعي","majed.s@gmail.com","0533445566",70,90,false),
+    mk("هند الفيفي","hind.alfaifi@icloud.com","0567788990",200,180,false),
+    mk("سلطان الرشيدي","sultan.r@hotmail.com","0544332211",12,30,true),
+  ];
+}
+
+function statusOf(m){
+  const now=new Date();
+  const total=m.end-m.start,left=m.end-now;
+  const daysLeft=Math.ceil(left/DAY);
+  const pct=total>0?Math.max(0,Math.min(100,(left/total)*100)):0;
+  let state='ok';
+  if(m.paused)state='paused';
+  else if(left<=0)state='exp';
+  else if(daysLeft<=3)state='warn';   // تنبيه أبكر يناسب فترات التجربة القصيرة
+  return{daysLeft,pct,state};
+}
+function fmtDate(d){return d.toLocaleDateString('ar-SA-u-nu-latn',{year:'numeric',month:'short',day:'numeric'});}
+function durText(days){
+  if(days<=0)return '—';
+  if(days===1)return 'يوم واحد';
+  if(days===2)return 'يومان';
+  if(days<=10)return days+' أيام';
+  if(days<30)return days+' يوماً';
+  if(days<365){const mo=Math.round(days/30);return mo+(mo===1?' شهر':(mo===2?' شهران':(mo<=10?' أشهر':' شهراً')));}
+  const y=Math.floor(days/365),r=days%365;const mo=Math.round(r/30);
+  return y+(y===1?' سنة':' سنوات')+(mo>0?(' و'+mo+' شهر'):'');
+}
+
+function renderMembers(){
+  const list=document.getElementById('list');
+  const q=(document.getElementById('searchBox').value||'').trim().toLowerCase();
+  let ok=0,warn=0,exp=0;
+  members.forEach(m=>{const s=statusOf(m);
+    if(s.state==='ok')ok++;else if(s.state==='warn')warn++;else exp++;});
+  document.getElementById('cntOk').textContent=ok;
+  document.getElementById('cntWarn').textContent=warn;
+  document.getElementById('cntExp').textContent=exp;
+
+  const shown=members.filter(m=>!q||m.name.toLowerCase().includes(q)||m.phone.includes(q)||(m.email||'').toLowerCase().includes(q));
+  if(shown.length===0){
+    list.innerHTML='<div class="empty">'+(members.length===0?'لا يوجد مشتركون بعد.<br>اضغط «إضافة مشترك جديد» للبدء.':'لا نتائج مطابقة لبحثك.')+'</div>';
+    return;
+  }
+  list.innerHTML=shown.map(m=>{
+    const i=members.indexOf(m),s=statusOf(m),col=AV_COLORS[Math.abs(i)%AV_COLORS.length];
+    const barcol=s.state==='ok'?'var(--green)':s.state==='warn'?'var(--gold)':s.state==='exp'?'var(--red)':'var(--muted)';
+    const stTxt=s.state==='ok'?'فعّال':s.state==='warn'?'قارب الانتهاء':s.state==='exp'?'منتهي':'موقوف';
+    const totalDays=Math.round((m.end-m.start)/DAY);
+    const leftCls=s.state==='paused'?'':(s.daysLeft>0?(s.state==='warn'?'warn':'ok'):'exp');
+    const leftTxt=s.state==='paused'?'اشتراك موقوف':(s.daysLeft>0?('باقي '+s.daysLeft+' يوم'):('منتهٍ منذ '+Math.abs(s.daysLeft)+' يوم'));
+    const pauseBtn=m.paused
+      ?'<button class="m-btn resume" onclick="togglePause('+i+')"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4Z" stroke-width="1.8" stroke-linejoin="round"/></svg>تفعيل الاشتراك</button>'
+      :'<button class="m-btn pause" onclick="togglePause('+i+')"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" stroke-width="1.8"/><rect x="14" y="5" width="4" height="14" rx="1" stroke-width="1.8"/></svg>إيقاف الاشتراك</button>';
+    return '<div class="member'+(m.paused?' paused':'')+'">'+
+      '<div class="m-top">'+
+        '<div class="m-av" style="background:linear-gradient(150deg,'+col+','+col+'bb)">'+m.name.charAt(0)+'</div>'+
+        '<div class="m-name"><h4>'+m.name+'</h4>'+
+          '<div class="mail">'+(m.email||'—')+'</div>'+
+          '<div class="phone">'+m.phone+' · مدة '+durText(totalDays)+'</div>'+
+        '</div>'+
+        '<div class="m-status '+s.state+'">'+stTxt+'</div>'+
+      '</div>'+
+      '<div class="m-bar"><i style="width:'+s.pct+'%;background:'+barcol+'"></i></div>'+
+      '<div class="m-grid">'+
+        '<div class="m-cell"><div class="k">بداية الاشتراك</div><div class="v">'+fmtDate(m.start)+'</div></div>'+
+        '<div class="m-cell"><div class="k">انتهاء الاشتراك</div><div class="v '+(s.state==='exp'?'exp':'')+'">'+fmtDate(m.end)+'</div></div>'+
+        '<div class="m-cell"><div class="k">المدة الكلية</div><div class="v">'+durText(totalDays)+'</div></div>'+
+        '<div class="m-cell"><div class="k">المتبقي</div><div class="v '+leftCls+'">'+leftTxt+'</div></div>'+
+      '</div>'+
+      '<div class="m-actions">'+
+        pauseBtn+
+        '<button class="m-btn del" onclick="askDelete('+i+')"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V5h6v2M8 7l1 12h6l1-12" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>حذف</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+/* delete مع تأكيد */
+function askDelete(i){
+  pendingDelete=i;
+  document.getElementById('confirmName').textContent=members[i].name;
+  document.getElementById('confirmBg').classList.add('show');
+}
+function cancelDelete(){pendingDelete=null;document.getElementById('confirmBg').classList.remove('show');}
+function confirmDelete(){
+  if(pendingDelete===null)return;
+  const name=members[pendingDelete].name;
+  members.splice(pendingDelete,1);pendingDelete=null;
+  document.getElementById('confirmBg').classList.remove('show');
+  renderMembers();showToast('تم حذف '+name,'bad');
+}
+document.getElementById('confirmBg').addEventListener('click',e=>{if(e.target.id==='confirmBg')cancelDelete();});
+
+function togglePause(i){
+  members[i].paused=!members[i].paused;renderMembers();
+  showToast(members[i].paused?('تم إيقاف اشتراك '+members[i].name):('تم تفعيل اشتراك '+members[i].name),members[i].paused?'bad':'good');
+}
+
+/* modal */
+function openModal(){
+  const t=new Date();t.setHours(0,0,0,0);
+  document.getElementById('mName').value='';
+  document.getElementById('mEmail').value='';
+  document.getElementById('mPhone').value='';
+  document.getElementById('mStart').value=t.toISOString().slice(0,10);
+  document.getElementById('mEnd').value='';
+  document.querySelectorAll('.qd').forEach(q=>q.classList.remove('sel'));
+  updateDurInfo();
+  document.getElementById('modalBg').classList.add('show');
+}
+function closeModal(){document.getElementById('modalBg').classList.remove('show');}
+document.getElementById('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal();});
+
+/* تعبئة سريعة: تحسب النهاية = البداية + عدد الأيام */
+document.querySelectorAll('.qd').forEach(q=>q.addEventListener('click',()=>{
+  document.querySelectorAll('.qd').forEach(x=>x.classList.remove('sel'));
+  q.classList.add('sel');
+  const days=parseInt(q.dataset.d);
+  let sv=document.getElementById('mStart').value;
+  if(!sv){const t=new Date();t.setHours(0,0,0,0);sv=t.toISOString().slice(0,10);document.getElementById('mStart').value=sv;}
+  const s=new Date(sv);const e=new Date(s.getTime()+days*DAY);
+  document.getElementById('mEnd').value=e.toISOString().slice(0,10);
+  updateDurInfo();
+}));
+function updateDurInfo(){
+  const sv=document.getElementById('mStart').value,ev=document.getElementById('mEnd').value;
+  const el=document.getElementById('durInfo');
+  if(!sv||!ev){el.textContent='—';el.className='val';return;}
+  const s=new Date(sv),e=new Date(ev);
+  const days=Math.round((e-s)/DAY);
+  if(days<=0){el.textContent='تاريخ النهاية يجب أن يكون بعد البداية';el.className='val bad';}
+  else{el.textContent=durText(days)+' ('+days+' يوم)';el.className='val';}
+  // إلغاء تحديد الأزرار السريعة إذا لم تعد المدة مطابقة
+  document.querySelectorAll('.qd').forEach(q=>{if(parseInt(q.dataset.d)!==days)q.classList.remove('sel');});
+}
+function addMember(){
+  const name=document.getElementById('mName').value.trim();
+  const email=document.getElementById('mEmail').value.trim();
+  const phone=document.getElementById('mPhone').value.trim();
+  const sv=document.getElementById('mStart').value;
+  const ev=document.getElementById('mEnd').value;
+  if(!name){showToast('أدخل اسم الكابتن','bad');return;}
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showToast('أدخل بريداً إلكترونياً صحيحاً','bad');return;}
+  if(!/^05\d{7,9}$/.test(phone)){showToast('رقم الجوال غير صحيح','bad');return;}
+  if(!sv){showToast('حدّد تاريخ البداية','bad');return;}
+  if(!ev){showToast('حدّد تاريخ الانتهاء','bad');return;}
+  const s=new Date(sv),e=new Date(ev);
+  if(e-s<=0){showToast('تاريخ النهاية يجب أن يكون بعد البداية','bad');return;}
+  members.unshift({id:Date.now(),name,email,phone,start:s,end:e,paused:false});
+  renderMembers();closeModal();showToast('تمت إضافة '+name+' ✓','good');
+}
+
+let tt;function showToast(m,type){const t=document.getElementById('toast');
+  t.textContent=m;t.className='toast '+(type||'')+' show';clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2200);}
+
+window.addEventListener('load',()=>document.getElementById('login').classList.add('active'));
+</script>
+</body>
+</html>

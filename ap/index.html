@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="مِشوار">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<title>مِشوار</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  :root{
+    --bg:#F4F6FA;--card:#FFFFFF;--ink:#141B2E;--muted:#7B8699;--line:#E7EBF2;
+    --gold:#F5B400;--gold-deep:#E09E00;--green:#12B76A;--green-deep:#0E9B58;
+    --blue:#2E7CF6;--red:#F04452;
+    --shadow:0 12px 34px -14px rgba(20,30,60,.22);--shadow-soft:0 4px 16px -6px rgba(20,30,60,.14);
+    --r:22px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:"Segoe UI",Tahoma,system-ui,sans-serif;background:var(--bg);color:var(--ink);
+    overflow:hidden;position:fixed;inset:0;user-select:none;-webkit-user-select:none}
+  .app{height:100%;max-width:480px;margin:0 auto;position:relative;overflow:hidden;background:var(--bg)}
+  button,input{font-family:inherit}
+  .screen{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .3s}
+  .screen.active{opacity:1;pointer-events:auto}
+
+  /* LOGIN */
+  #login{display:flex;flex-direction:column;justify-content:center;padding:34px 26px;text-align:center;
+    background:radial-gradient(130% 60% at 50% 0%,#FFF6DE,transparent 55%),var(--bg)}
+  .brand-mark{width:94px;height:94px;margin:0 auto 22px;border-radius:28px;
+    background:linear-gradient(150deg,var(--gold),var(--gold-deep));display:flex;align-items:center;justify-content:center;
+    box-shadow:0 18px 38px -10px rgba(245,180,0,.5)}
+  .brand-mark svg{width:54px;height:54px}
+  .brand-name{font-size:42px;font-weight:800;letter-spacing:-1px}
+  .brand-name span{color:var(--gold-deep)}
+  .brand-sub{color:var(--muted);font-size:14px;margin:6px 0 40px;font-weight:600}
+  .field{text-align:right;margin-bottom:15px}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px;padding-right:4px;font-weight:700}
+  .field input{width:100%;background:var(--card);border:1.5px solid var(--line);color:var(--ink);
+    padding:16px 18px;border-radius:15px;font-size:16px;text-align:right;transition:border .2s;box-shadow:var(--shadow-soft)}
+  .field input:focus{outline:none;border-color:var(--gold)}
+  .btn{width:100%;border:none;font-size:17px;font-weight:800;padding:17px;border-radius:15px;cursor:pointer;transition:transform .1s}
+  .btn:active{transform:scale(.97)}
+  .btn-gold{background:linear-gradient(150deg,var(--gold),var(--gold-deep));color:#3A2C00;margin-top:12px;
+    box-shadow:0 12px 26px -10px rgba(245,180,0,.6)}
+  .login-hint{margin-top:22px;font-size:12.5px;color:var(--muted);line-height:1.8}
+  .login-hint b{color:var(--gold-deep)}
+  .err{color:var(--red);font-size:13px;margin-top:14px;min-height:18px;font-weight:700}
+
+  /* MAP */
+  #map{position:absolute;inset:0;z-index:1;background:#E8EDF3}
+  .leaflet-control-attribution{font-size:9px!important;background:rgba(255,255,255,.7)!important}
+
+  .fab-top{position:absolute;top:calc(14px + env(safe-area-inset-top));left:14px;right:14px;z-index:400;
+    display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}
+  .fab{width:48px;height:48px;border-radius:16px;background:var(--card);box-shadow:var(--shadow);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;border:1px solid var(--line)}
+  .fab:active{transform:scale(.94)}
+  .fab svg{width:22px;height:22px;stroke:var(--ink);fill:none}
+  .status-pill{background:var(--card);box-shadow:var(--shadow);border:1px solid var(--line);border-radius:16px;
+    padding:9px 15px;pointer-events:auto;display:flex;align-items:center;gap:8px}
+  .status-pill .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+  .status-pill span{font-size:13px;font-weight:700}
+
+  .recenter{position:absolute;left:14px;z-index:410;width:46px;height:46px;border-radius:15px;background:var(--card);
+    box-shadow:var(--shadow);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:bottom .3s}
+  .recenter:active{transform:scale(.94)}
+  .recenter svg{width:22px;height:22px;stroke:var(--gold-deep);fill:none}
+  .pickup-badge{background:var(--card);box-shadow:var(--shadow);border:1px solid var(--line);border-radius:14px;
+    padding:7px 12px;font-size:12px;font-weight:800;white-space:nowrap;transform:translateY(-6px)}
+  .pickup-badge b{color:var(--gold-deep)}
+
+  /* SHEET */
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:500;background:var(--card);border-radius:26px 26px 0 0;
+    box-shadow:0 -12px 40px -12px rgba(20,30,60,.25);padding:10px 18px calc(16px + env(safe-area-inset-bottom));
+    transition:transform .4s cubic-bezier(.2,.8,.25,1);max-height:76%;display:flex;flex-direction:column}
+  .grip{width:44px;height:5px;background:var(--line);border-radius:3px;margin:6px auto 12px;flex-shrink:0}
+  .sheet-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .sheet-scroll::-webkit-scrollbar{display:none}
+
+  .rider{display:flex;align-items:center;gap:13px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .rider-av{width:54px;height:54px;border-radius:17px;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:20px;color:#fff;flex-shrink:0}
+  .rider-info{flex:1;min-width:0}
+  .rider-info h4{font-size:17px;font-weight:800}
+  .rider-info .stars{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .rider-info .stars b{color:var(--gold-deep)}
+  .fare{text-align:left}
+  .fare .amt{font-size:21px;font-weight:800;color:var(--green-deep)}
+  .fare .amt small{font-size:12px}
+  .fare .pay{font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:4px;justify-content:flex-end}
+  .fare .pay svg{width:13px;height:13px;stroke:var(--blue);fill:none}
+
+  .route{padding:16px 0;border-bottom:1px solid var(--line)}
+  .stop{display:flex;gap:13px;position:relative}
+  .stop:not(:last-child){padding-bottom:18px}
+  .stop-line{position:absolute;right:8px;top:22px;bottom:-2px;width:2px;background:var(--line)}
+  .stop:last-child .stop-line{display:none}
+  .stop-pin{width:18px;height:18px;border-radius:50%;flex-shrink:0;margin-top:2px;z-index:2;display:flex;align-items:center;justify-content:center}
+  .stop-pin.start{background:rgba(245,180,0,.18);border:2px solid var(--gold)}
+  .stop-pin.start::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--gold-deep)}
+  .stop-pin.end{background:rgba(18,183,106,.18);border:2px solid var(--green)}
+  .stop-pin.end::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .stop-text .lbl{font-size:11px;color:var(--muted);font-weight:700}
+  .stop-text .val{font-size:14.5px;font-weight:700;margin-top:2px}
+  .stop-text .meta{font-size:11.5px;color:var(--muted);margin-top:2px}
+
+  .trip-actions{display:flex;gap:10px;padding:14px 0}
+  .mini-btn{flex:1;padding:13px;border-radius:14px;border:1px solid var(--line);background:var(--bg);
+    color:var(--ink);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;text-decoration:none}
+  .mini-btn svg{width:17px;height:17px;fill:none}
+  .mini-btn:active{background:var(--line)}
+  .mini-btn.call svg{stroke:var(--green-deep)}
+  .mini-btn.msg svg{stroke:var(--blue)}
+
+  /* trip progress button */
+  .trip-btn{width:100%;border:none;border-radius:18px;padding:18px;font-size:16px;font-weight:800;cursor:pointer;
+    transition:transform .1s;display:flex;align-items:center;justify-content:center;gap:9px;flex-shrink:0;color:#fff}
+  .trip-btn:active{transform:scale(.98)}
+  .trip-btn svg{width:20px;height:20px;stroke:#fff;fill:none}
+  .trip-btn.go{background:linear-gradient(150deg,var(--green),var(--green-deep));box-shadow:0 10px 24px -10px rgba(14,155,88,.6)}
+  .trip-btn.arrived{background:linear-gradient(150deg,var(--gold),var(--gold-deep));color:#3A2C00;box-shadow:0 10px 24px -10px rgba(245,180,0,.6)}
+  .trip-btn.arrived svg{stroke:#3A2C00}
+  .trip-btn.finish{background:linear-gradient(150deg,var(--blue),#1E63D6);box-shadow:0 10px 24px -10px rgba(46,124,246,.6)}
+  .trip-phase{text-align:center;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:10px}
+  .trip-phase b{color:var(--green-deep)}
+
+  /* CHAT SCREEN */
+  #chat{background:var(--bg);display:flex;flex-direction:column}
+  .chat-head{display:flex;align-items:center;gap:12px;padding:calc(14px + env(safe-area-inset-top)) 16px 14px;
+    background:var(--card);border-bottom:1px solid var(--line);box-shadow:var(--shadow-soft);z-index:2}
+  .chat-back{width:40px;height:40px;border-radius:12px;background:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+  .chat-back svg{width:20px;height:20px;stroke:var(--ink);fill:none}
+  .chat-av{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:17px}
+  .chat-who{flex:1}
+  .chat-who h4{font-size:15px;font-weight:800}
+  .chat-who p{font-size:11.5px;color:var(--green-deep);font-weight:700;margin-top:1px}
+  .chat-call{width:42px;height:42px;border-radius:12px;background:rgba(18,183,106,.12);display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .chat-call svg{width:19px;height:19px;stroke:var(--green-deep);fill:none}
+  .chat-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 14px;display:flex;flex-direction:column;gap:10px}
+  .chat-body::-webkit-scrollbar{display:none}
+  .bubble{max-width:78%;padding:11px 14px;border-radius:18px;font-size:14px;line-height:1.5;word-wrap:break-word}
+  .bubble.them{background:var(--card);border:1px solid var(--line);align-self:flex-start;border-bottom-right-radius:6px}
+  .bubble.me{background:linear-gradient(150deg,var(--green),var(--green-deep));color:#fff;align-self:flex-end;border-bottom-left-radius:6px}
+  .bubble .t{font-size:9.5px;opacity:.6;margin-top:3px;display:block}
+  .chat-quick{display:flex;gap:8px;padding:8px 14px;overflow-x:auto;background:var(--card);border-top:1px solid var(--line)}
+  .chat-quick::-webkit-scrollbar{display:none}
+  .qbtn{white-space:nowrap;background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer;flex-shrink:0}
+  .qbtn:active{background:var(--line)}
+  .chat-input{display:flex;gap:8px;padding:10px 14px calc(12px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line)}
+  .chat-input input{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:12px 16px;font-size:14px}
+  .chat-input input:focus{outline:none;border-color:var(--green)}
+  .chat-send{width:46px;height:46px;border-radius:50%;background:linear-gradient(150deg,var(--green),var(--green-deep));border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+  .chat-send svg{width:20px;height:20px;stroke:#fff;fill:none}
+
+  /* TOAST */
+  .toast{position:absolute;bottom:130px;left:50%;transform:translateX(-50%) translateY(20px);z-index:700;
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:14px;font-size:13.5px;font-weight:700;
+    opacity:0;transition:all .3s;box-shadow:var(--shadow);white-space:nowrap;max-width:90vw;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.good{background:var(--green-deep)}.toast.bad{background:var(--red)}
+
+  /* PUSH */
+  .push{position:absolute;top:0;left:0;right:0;z-index:800;padding:calc(10px + env(safe-area-inset-top)) 12px 0;pointer-events:none}
+  .push-card{background:rgba(250,250,252,.86);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border:1px solid rgba(255,255,255,.6);border-radius:20px;padding:13px 15px;display:flex;gap:12px;align-items:flex-start;
+    box-shadow:0 16px 40px rgba(20,30,60,.25);transform:translateY(-170%);transition:transform .5s cubic-bezier(.2,.9,.3,1);pointer-events:auto}
+  .push-card.show{transform:translateY(0)}
+  .push-icon{width:40px;height:40px;border-radius:11px;background:linear-gradient(150deg,var(--gold),var(--gold-deep));display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .push-icon svg{width:22px;height:22px}
+  .push-body{flex:1;min-width:0}
+  .push-body .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+  .push-body .app-n{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.3px}
+  .push-body .time{font-size:10.5px;color:var(--muted)}
+  .push-body h5{font-size:14px;font-weight:800}
+  .push-body p{font-size:12.5px;color:#4A5568;line-height:1.45;margin-top:1px}
+
+  .perm{position:absolute;left:14px;right:14px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:750;
+    background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:16px;transform:translateY(160%);transition:transform .4s;display:none}
+  .perm.show{transform:translateY(0)}
+  .perm h5{font-size:15px;font-weight:800;margin-bottom:5px}
+  .perm p{font-size:12.5px;color:var(--muted);line-height:1.5;margin-bottom:12px}
+  .perm .row{display:flex;gap:10px}
+  .perm button{flex:1;padding:12px;border-radius:12px;border:none;font-weight:800;font-size:13.5px;cursor:pointer}
+  .perm .yes{background:var(--gold);color:#3A2C00}
+  .perm .no{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- LOGIN -->
+  <section class="screen" id="login">
+    <div class="brand-mark">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 13l1.5-5A2.5 2.5 0 0 1 8 6h8a2.5 2.5 0 0 1 2.5 2L20 13v5a1 1 0 0 1-1 1h-1.5a1 1 0 0 1-1-1v-1h-9v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-5Z" stroke="#3A2C00" stroke-width="1.6" stroke-linejoin="round"/><circle cx="7" cy="15.5" r="1.1" fill="#3A2C00"/><circle cx="17" cy="15.5" r="1.1" fill="#3A2C00"/></svg>
+    </div>
+    <h1 class="brand-name">مِ<span>شوار</span></h1>
+    <p class="brand-sub">بوابة الكابتن · شريك التوصيل</p>
+    <div class="field"><label>رقم الجوال</label>
+      <input type="tel" id="phone" placeholder="05xxxxxxxx" value="0555123456" inputmode="numeric"></div>
+    <div class="field"><label>الرمز السري</label>
+      <input type="password" id="pass" placeholder="••••••••" value="captain"></div>
+    <button class="btn btn-gold" onclick="doLogin()">تسجيل الدخول</button>
+    <div class="err" id="loginErr"></div>
+    <p class="login-hint">للتجربة: أي رقم يبدأ بـ <b>05</b> والرمز <b>captain</b><br>يبقى دخولك محفوظاً حتى تسجّل الخروج.</p>
+  </section>
+
+  <!-- HOME -->
+  <section class="screen" id="home">
+    <div id="map"></div>
+    <div class="fab-top">
+      <div class="fab" onclick="logout()" title="خروج">
+        <svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" stroke-width="1.8" stroke-linecap="round"/><path d="M10 16l-4-4 4-4M6 12h11" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="status-pill"><span class="dot"></span><span id="statusTxt">في الطريق للعميل</span></div>
+      <div class="fab" onclick="testPush()" title="تنبيه">
+        <svg viewBox="0 0 24 24"><path d="M6 17h12l-1.5-2v-4a4.5 4.5 0 0 0-9 0v4L6 17Z" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20a2 2 0 0 0 4 0" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+    <div class="recenter" id="recenterBtn" onclick="recenter()">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.4" stroke-width="1.9"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke-width="1.9" stroke-linecap="round"/></svg>
+    </div>
+
+    <div class="sheet" id="sheet">
+      <div class="grip"></div>
+      <div class="sheet-scroll">
+        <div class="rider">
+          <div class="rider-av" id="riderAv">ع</div>
+          <div class="rider-info">
+            <h4 id="riderName">عبدالله الغامدي</h4>
+            <div class="stars"><b>★ <span id="riderRate">4.9</span></b> · <span>راكب مميز</span></div>
+          </div>
+          <div class="fare">
+            <div class="amt"><span id="fareVal">38</span> <small>ر.س</small></div>
+            <div class="pay" id="payType"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" stroke-width="1.8"/><path d="M3 10h18" stroke-width="1.8"/></svg><span>بطاقة مدى</span></div>
+          </div>
+        </div>
+
+        <div class="route">
+          <div class="stop">
+            <div class="stop-line"></div>
+            <div class="stop-pin start"></div>
+            <div class="stop-text">
+              <div class="lbl">نقطة الالتقاء</div>
+              <div class="val">مطار الملك عبدالعزيز الدولي</div>
+              <div class="meta">صالة القدوم · جدة</div>
+            </div>
+          </div>
+          <div class="stop">
+            <div class="stop-pin end"></div>
+            <div class="stop-text">
+              <div class="lbl">وجهة العميل</div>
+              <div class="val" id="destName">حي الروضة</div>
+              <div class="meta">جدة · <span id="destKm">17.4</span> كم · <span id="destMin">22</span> دقيقة</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="trip-actions">
+          <a class="mini-btn call" id="callBtn" href="tel:+966555000111">
+            <svg viewBox="0 0 24 24"><path d="M5 4h3l2 5-2 1a10 10 0 0 0 5 5l1-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" stroke-width="1.7" stroke-linejoin="round"/></svg>اتصال</a>
+          <button class="mini-btn msg" onclick="openChat()">
+            <svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-4 3v-3H4V5Z" stroke-width="1.7" stroke-linejoin="round"/></svg>رسالة</button>
+        </div>
+      </div>
+
+      <div class="trip-phase" id="tripPhase">المرحلة: <b>متجه لاستلام العميل</b></div>
+      <button class="trip-btn go" id="tripBtn" onclick="advancePhase()">
+        <svg viewBox="0 0 24 24" id="tripBtnIcon"><path d="M5 12h14M13 6l6 6-6 6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="tripBtnLabel">وصلت إلى نقطة العميل</span>
+      </button>
+    </div>
+
+    <div class="push"><div class="push-card" id="pushCard">
+      <div class="push-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M6 17h12l-1.5-2v-4a4.5 4.5 0 0 0-9 0v4L6 17Z" stroke="#3A2C00" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20a2 2 0 0 0 4 0" stroke="#3A2C00" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+      <div class="push-body">
+        <div class="ph"><span class="app-n">مِشوار</span><span class="time" id="pushTime">الآن</span></div>
+        <h5>تنبيه حركة المركبة</h5>
+        <p>لقد توقفت المركبة عن التحرك... لا تتأخر على العميل.</p>
+      </div>
+    </div></div>
+
+    <div class="perm" id="permPrompt">
+      <h5>تفعيل تنبيهات القيادة</h5>
+      <p>للحصول على تنبيهات المركبة والعميل كإشعارات حقيقية على جهازك، اسمح للتطبيق بإرسال الإشعارات.</p>
+      <div class="row">
+        <button class="no" onclick="denyPerm()">لاحقاً</button>
+        <button class="yes" onclick="askPerm()">تفعيل الإشعارات</button>
+      </div>
+    </div>
+    <div class="toast" id="toast"></div>
+  </section>
+
+  <!-- CHAT -->
+  <section class="screen" id="chat">
+    <div class="chat-head">
+      <div class="chat-back" onclick="closeChat()">
+        <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="chat-av" id="chatAv">ع</div>
+      <div class="chat-who"><h4 id="chatName">عبدالله الغامدي</h4><p>متصل الآن</p></div>
+      <a class="chat-call" id="chatCallBtn" href="tel:+966555000111">
+        <svg viewBox="0 0 24 24"><path d="M5 4h3l2 5-2 1a10 10 0 0 0 5 5l1-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" stroke-width="1.7" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+    <div class="chat-body" id="chatBody"></div>
+    <div class="chat-quick" id="chatQuick">
+      <button class="qbtn" onclick="quickSend('أنا في الطريق إليك الآن 🚗')">في الطريق إليك</button>
+      <button class="qbtn" onclick="quickSend('وصلت، أنا بانتظارك عند صالة القدوم')">وصلت لك</button>
+      <button class="qbtn" onclick="quickSend('ما هو لون وموديل ملابسك لأتعرف عليك؟')">أين أنت بالضبط؟</button>
+      <button class="qbtn" onclick="quickSend('تم، بانتظارك لا تستعجل 👍')">لا تستعجل</button>
+    </div>
+    <div class="chat-input">
+      <input type="text" id="chatInput" placeholder="اكتب رسالة..." onkeydown="if(event.key==='Enter')sendMsg()">
+      <button class="chat-send" onclick="sendMsg()">
+        <svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-3-6-7-2Z" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </section>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const SESSION={loggedIn:false};
+const AIRPORT=[21.6805,39.1567];
+const RIDERS=[["عبدالله الغامدي","4.9"],["سارة القرشي","5.0"],["محمد الحربي","4.8"],
+  ["نورة الزهراني","4.9"],["فيصل الشمري","4.7"],["ريم المالكي","5.0"],["تركي العنزي","4.8"],["لمى الدوسري","4.9"]];
+const DESTS=[
+  ["حي الروضة",21.5623,39.1670],["حي الحمراء",21.5290,39.1580],["البلد التاريخي",21.4830,39.1870],
+  ["حي الشاطئ",21.6350,39.1030],["حي السلامة",21.6010,39.1490],["حي النعيم",21.6210,39.1290],
+  ["كورنيش جدة",21.5900,39.1420],["حي الصفا",21.5510,39.2050],["حي المروة",21.5990,39.1830],["حي البوادي",21.5700,39.1750]];
+const PAY_METHODS=[
+  ['بطاقة مدى','card'],['بطاقة Visa','card'],['شبكة (نقاط البيع)','card'],['محفظة مِشوار','wallet'],['Apple Pay','wallet']];
+const AV_COLORS=["#5B4F9E","#0E9B58","#C0392B","#2E7CF6","#D35400","#8E44AD","#16A085","#B7791F"];
+const rand=a=>a[Math.floor(Math.random()*a.length)];
+// أرقام سعودية وهمية (نطاق 966 5xx)
+function fakeSaudiNumber(){
+  const p=['50','53','54','55','56','58','59'];
+  let n='+9665'+rand(p).slice(1);
+  for(let i=0;i<7;i++)n+=Math.floor(Math.random()*10);
+  return n;
+}
+let currentRider={name:'',phone:'',color:'#5B4F9E'};
+
+/* login */
+function doLogin(){
+  const p=document.getElementById('phone').value.trim();
+  const pw=document.getElementById('pass').value;
+  const err=document.getElementById('loginErr');
+  if(!/^05\d{7,9}$/.test(p)){err.textContent="أدخل رقم جوال صحيح يبدأ بـ 05";return;}
+  if(pw!=="captain"){err.textContent="الرمز السري غير صحيح";return;}
+  err.textContent="";SESSION.loggedIn=true;enterApp();
+}
+function enterApp(){
+  document.getElementById('login').classList.remove('active');
+  document.getElementById('home').classList.add('active');
+  initMap();freshTrip();positionRecenter();maybeAskPermission();schedulePush();
+}
+function logout(){
+  SESSION.loggedIn=false;clearTimeout(pushTimer);
+  document.getElementById('home').classList.remove('active');
+  document.getElementById('chat').classList.remove('active');
+  document.getElementById('login').classList.add('active');
+}
+
+/* map */
+let map,carMarker,destMarker,routeLine,pickupBadge;
+function initMap(){
+  if(map){map.setView(AIRPORT,14);return;}
+  map=L.map('map',{zoomControl:false,attributionControl:true}).setView(AIRPORT,14);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+    maxZoom:19,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'}).addTo(map);
+  const carIcon=L.divIcon({className:'',iconSize:[46,46],iconAnchor:[23,23],html:
+    '<div style="position:relative;width:46px;height:46px">'+
+      '<div style="position:absolute;inset:0;border-radius:50%;background:rgba(245,180,0,.22);animation:ring 2.2s ease-out infinite"></div>'+
+      '<div style="position:absolute;top:11px;left:11px;width:24px;height:24px;border-radius:50%;background:linear-gradient(150deg,#F5B400,#E09E00);border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center">'+
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 13l1.5-4.5A2 2 0 0 1 7.5 7h9a2 2 0 0 1 2 1.5L20 13v4h-2v-1H6v1H4v-4Z" stroke="#3A2C00" stroke-width="2" stroke-linejoin="round"/></svg>'+
+      '</div></div>'});
+  carMarker=L.marker(AIRPORT,{icon:carIcon,interactive:false,zIndexOffset:1000}).addTo(map);
+  const badgeIcon=L.divIcon({className:'',iconSize:[0,0],html:'<div class="pickup-badge">📍 موقعك: <b>مطار الملك عبدالعزيز</b></div>'});
+  pickupBadge=L.marker(AIRPORT,{icon:badgeIcon,interactive:false,zIndexOffset:900}).addTo(map);
+  const st=document.createElement('style');
+  st.textContent='@keyframes ring{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.6);opacity:0}}';
+  document.head.appendChild(st);
+}
+function drawRoute(dest){
+  if(destMarker)map.removeLayer(destMarker);
+  if(routeLine)map.removeLayer(routeLine);
+  const destIcon=L.divIcon({className:'',iconSize:[26,26],iconAnchor:[13,13],html:
+    '<div style="width:26px;height:26px;border-radius:50%;background:rgba(18,183,106,.2);display:flex;align-items:center;justify-content:center">'+
+      '<div style="width:14px;height:14px;border-radius:50%;background:#12B76A;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)"></div></div>'});
+  destMarker=L.marker([dest[1],dest[2]],{icon:destIcon,interactive:false}).addTo(map);
+  const midLat=(AIRPORT[0]+dest[1])/2+(Math.random()-.5)*.02;
+  const midLng=(AIRPORT[1]+dest[2])/2+(Math.random()-.5)*.02;
+  routeLine=L.polyline([AIRPORT,[midLat,midLng],[dest[1],dest[2]]],{color:'#F5B400',weight:5,opacity:.9,lineCap:'round',lineJoin:'round'}).addTo(map);
+  map.fitBounds(routeLine.getBounds().pad(.35),{paddingBottomRight:[0,280]});
+}
+function recenter(){if(map)map.setView(AIRPORT,14,{animate:true});}
+function positionRecenter(){
+  const sheet=document.getElementById('sheet'),btn=document.getElementById('recenterBtn');
+  requestAnimationFrame(()=>{btn.style.bottom=(sheet.offsetHeight+14)+'px';});
+}
+
+/* trip */
+function freshTrip(){
+  const r=rand(RIDERS),d=rand(DESTS),pay=rand(PAY_METHODS);
+  const km=(Math.hypot((AIRPORT[0]-d[1])*111,(AIRPORT[1]-d[2])*100)).toFixed(1);
+  const color=rand(AV_COLORS);
+  currentRider={name:r[0],phone:fakeSaudiNumber(),color};
+  document.getElementById('riderName').textContent=r[0];
+  document.getElementById('riderRate').textContent=r[1];
+  const av=document.getElementById('riderAv');
+  av.textContent=r[0].charAt(0);av.style.background='linear-gradient(150deg,'+color+','+color+'bb)';
+  document.getElementById('destName').textContent=d[0];
+  document.getElementById('destKm').textContent=km;
+  document.getElementById('destMin').textContent=Math.round(km*1.4+6);
+  document.getElementById('fareVal').textContent=(25+Math.floor(Math.random()*45));
+  document.getElementById('payType').querySelector('span').textContent=pay[0];
+  // اتصال حقيقي بالرقم
+  const tel='tel:'+currentRider.phone;
+  document.getElementById('callBtn').setAttribute('href',tel);
+  document.getElementById('chatCallBtn').setAttribute('href',tel);
+  drawRoute(d);
+  resetPhase();
+}
+
+/* مراحل الرحلة بدل السلايدر */
+let phase=0; // 0 متجه للعميل، 1 وصل للعميل، 2 بدأ الرحلة، 3 انتهت
+function resetPhase(){phase=0;renderPhase();}
+function renderPhase(){
+  const btn=document.getElementById('tripBtn'),lbl=document.getElementById('tripBtnLabel'),
+        ic=document.getElementById('tripBtnIcon'),ph=document.getElementById('tripPhase'),
+        st=document.getElementById('statusTxt');
+  btn.className='trip-btn';
+  if(phase===0){
+    btn.classList.add('go');lbl.textContent='وصلت إلى نقطة العميل';
+    ic.innerHTML='<path d="M5 12h14M13 6l6 6-6 6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+    ph.innerHTML='المرحلة: <b>متجه لاستلام العميل</b>';st.textContent='في الطريق للعميل';
+  }else if(phase===1){
+    btn.classList.add('arrived');lbl.textContent='بدء الرحلة مع العميل';
+    ic.innerHTML='<circle cx="12" cy="12" r="9" stroke-width="2"/><path d="M12 8v4l3 2" stroke-width="2" stroke-linecap="round"/>';
+    ph.innerHTML='المرحلة: <b>بانتظار ركوب العميل</b>';st.textContent='وصلت لنقطة العميل';
+  }else if(phase===2){
+    btn.classList.add('finish');lbl.textContent='إنهاء الرحلة وتحصيل الأجرة';
+    ic.innerHTML='<path d="M5 13l4 4L19 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+    ph.innerHTML='المرحلة: <b>الرحلة جارية نحو الوجهة</b>';st.textContent='في رحلة مع العميل';
+  }
+}
+function advancePhase(){
+  if(phase===0){phase=1;renderPhase();showToast('تم تأكيد وصولك — بانتظار العميل','good');if(navigator.vibrate)navigator.vibrate(30);}
+  else if(phase===1){phase=2;renderPhase();showToast('انطلقت الرحلة نحو الوجهة','good');if(navigator.vibrate)navigator.vibrate(30);}
+  else if(phase===2){
+    const fare=document.getElementById('fareVal').textContent;
+    showToast('تم إنهاء الرحلة وتحصيل '+fare+' ر.س ✓','good');if(navigator.vibrate)navigator.vibrate([40,30,40]);
+    setTimeout(()=>{freshTrip();showToast('طلب جديد: عميل ينتظرك بالمطار','good');},2600);
+  }
+}
+
+/* chat */
+let chatMsgs=[];
+function nowTime(){const t=new Date();return t.getHours().toString().padStart(2,'0')+':'+t.getMinutes().toString().padStart(2,'0');}
+function openChat(){
+  document.getElementById('chatName').textContent=currentRider.name;
+  const ca=document.getElementById('chatAv');
+  ca.textContent=currentRider.name.charAt(0);ca.style.background='linear-gradient(150deg,'+currentRider.color+','+currentRider.color+'bb)';
+  if(chatMsgs.length===0){
+    chatMsgs=[
+      {who:'them',text:'السلام عليكم كابتن، أنا خارج من صالة القدوم الآن',t:nowTime()},
+      {who:'them',text:'كم تقريباً تحتاج للوصول؟',t:nowTime()}
+    ];
+  }
+  renderChat();
+  document.getElementById('home').classList.remove('active');
+  document.getElementById('chat').classList.add('active');
+}
+function closeChat(){
+  document.getElementById('chat').classList.remove('active');
+  document.getElementById('home').classList.add('active');
+}
+function renderChat(){
+  const b=document.getElementById('chatBody');
+  b.innerHTML=chatMsgs.map(m=>'<div class="bubble '+m.who+'">'+m.text+'<span class="t">'+m.t+'</span></div>').join('');
+  b.scrollTop=b.scrollHeight;
+}
+function pushMsg(who,text){chatMsgs.push({who,text,t:nowTime()});renderChat();}
+function sendMsg(){
+  const inp=document.getElementById('chatInput');const v=inp.value.trim();if(!v)return;
+  inp.value='';pushMsg('me',v);autoReply();
+}
+function quickSend(text){pushMsg('me',text);autoReply();}
+function autoReply(){
+  const replies=['تمام كابتن، بانتظارك 👍','أوكي، أنا عند المخرج رقم 3','ماشي، خذ راحتك','شكراً، وصلني موقعك لو سمحت','تمام، أشوفك قريب'];
+  setTimeout(()=>{pushMsg('them',rand(replies));},1400+Math.random()*1200);
+}
+
+/* push (real) */
+let swReg=null;
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>{swReg=r;}).catch(()=>{});}
+function maybeAskPermission(){
+  if(!('Notification' in window))return;
+  if(Notification.permission==='default')setTimeout(()=>document.getElementById('permPrompt').classList.add('show'),1500);
+}
+function askPerm(){
+  document.getElementById('permPrompt').classList.remove('show');
+  if(!('Notification' in window)){showToast('جهازك لا يدعم الإشعارات','bad');return;}
+  Notification.requestPermission().then(p=>{
+    if(p==='granted')showToast('تم تفعيل الإشعارات ✓','good');else showToast('لم يتم منح إذن الإشعارات','bad');
+  });
+}
+function denyPerm(){document.getElementById('permPrompt').classList.remove('show');}
+function fireSystemNotification(){
+  const title='مِشوار · تنبيه حركة المركبة';
+  const body='لقد توقفت المركبة عن التحرك... لا تتأخر على العميل.';
+  const opts={body,tag:'mishwar-move',renotify:true,vibrate:[80,40,80],dir:'rtl',lang:'ar',badge:'icon.png',icon:'icon.png'};
+  if('Notification' in window && Notification.permission==='granted'){
+    try{if(swReg&&swReg.showNotification)swReg.showNotification(title,opts);else new Notification(title,opts);}catch(e){}
+  }
+  showInAppPush();
+}
+function showInAppPush(){
+  const c=document.getElementById('pushCard');
+  document.getElementById('pushTime').textContent=nowTime();
+  c.classList.add('show');if(navigator.vibrate)navigator.vibrate([80,40,80]);
+  setTimeout(()=>c.classList.remove('show'),6500);
+}
+document.getElementById('pushCard').addEventListener('click',function(){this.classList.remove('show');});
+let pushTimer=null;
+function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(()=>{if(SESSION.loggedIn)fireSystemNotification();},10000);}
+function testPush(){fireSystemNotification();}
+
+/* toast */
+let tt;function showToast(m,type){const t=document.getElementById('toast');
+  t.textContent=m;t.className='toast '+(type||'')+' show';clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2200);}
+
+window.addEventListener('load',()=>document.getElementById('login').classList.add('active'));
+window.addEventListener('resize',positionRecenter);
+</script>
+</body>
+</html>
