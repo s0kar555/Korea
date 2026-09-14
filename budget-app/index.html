@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#f7f8fa" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="ميزانية الرحلة" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>ميزانية الرحلة</title>
+    <link rel="icon" type="image/png" href="app-icon.png?v=8" />
+    <link rel="apple-touch-icon" href="app-icon.png?v=8" />
+    <link rel="manifest" href="manifest.webmanifest?v=8" />
+    <link rel="stylesheet" href="styles.css?v=8" />
+  </head>
+  <body>
+    <div id="toast" class="toast" aria-live="polite"></div>
+
+    <main class="shell">
+      <section id="loginView" class="login-view">
+        <div class="login-card">
+          <div class="brand-mark">
+            <img src="app-icon.png?v=8" alt="" aria-hidden="true" />
+          </div>
+          <h1>ميزانية الرحلة</h1>
+          <form id="loginForm" class="stack" autocomplete="on">
+            <label class="field">
+              <span>اسم المستخدم</span>
+              <input
+                id="username"
+                name="username"
+                inputmode="text"
+                autocomplete="username"
+                required
+              />
+            </label>
+            <label class="field">
+              <span>الرقم السري</span>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+              />
+            </label>
+            <button class="btn primary" type="submit">دخول</button>
+          </form>
+          <p id="configHint" class="config-hint hidden">
+            أضف بيانات Supabase داخل <code>config.js</code> أولًا.
+          </p>
+        </div>
+      </section>
+
+      <section id="appView" class="app-view hidden">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow hidden" id="tripPhase"></p>
+            <h1>ميزانية الرحلة</h1>
+            <p id="dateContext" class="muted"></p>
+          </div>
+          <div class="top-actions">
+            <span id="userBadge" class="user-badge"></span>
+            <button
+              id="logoutBtn"
+              class="icon-btn"
+              title="تسجيل الخروج"
+              aria-label="تسجيل الخروج"
+            >
+              <svg class="door-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M5 3h10a2 2 0 0 1 2 2v3h-2V5H7v14h8v-3h2v3a2 2 0 0 1-2 2H5V3Z"
+                />
+                <path
+                  d="M13 11h7.2l-2.1-2.1 1.4-1.4 4.5 4.5-4.5 4.5-1.4-1.4 2.1-2.1H13v-2Z"
+                />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <!-- OPTIONAL TEST DATE CONTROLS — START
+           لإخفاء شريط التحكم بالتواريخ: اعمل Comment من هذا السطر إلى OPTIONAL TEST DATE CONTROLS — END.
+           حذف/تعليق هذا القسم لا يعطل التطبيق؛ سيستخدم تاريخ الجهاز الحقيقي تلقائيًا. -->
+        <!-- <section id="testTimeBar" class="test-time-bar">
+        <span class="test-badge">اختبار الوقت</span>
+        <button id="testPrevDay" class="test-day-btn" type="button">− يوم</button>
+        <input id="testDate" type="date" aria-label="تاريخ الاختبار" />
+        <button id="testNextDay" class="test-day-btn" type="button">+ يوم</button>
+        <button id="testRealDate" class="test-day-btn secondary" type="button">الفعلي</button>
+      </section> -->
+        <!-- OPTIONAL TEST DATE CONTROLS — END -->
+
+        <section class="action-grid" aria-label="الإجراءات السريعة">
+          <button id="addEntryBtn" class="quick-action">
+            <span class="qa-icon">＋</span>
+            <span><b>إضافة</b></span>
+          </button>
+          <button id="budgetBtn" class="quick-action hidden">
+            <span class="qa-icon">⚙</span>
+            <span><b>الميزانيات</b></span>
+          </button>
+        </section>
+
+        <section id="summaryArea" class="summary-area"></section>
+
+        <section
+          id="analyticsPanel"
+          class="analytics-panel section-card collapsible-section"
+        >
+          <div class="section-head section-card-head analytics-head">
+            <div><h2>المؤشرات</h2></div>
+            <button
+              id="analyticsToggle"
+              class="collapse-btn card-collapse-btn"
+              type="button"
+              aria-expanded="true"
+              aria-controls="analyticsBody"
+              aria-label="تصغير أو تكبير المؤشرات"
+            >
+              <svg class="chevron-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+          </div>
+          <div id="analyticsBody" class="analytics-body collapsible-body">
+            <div class="analytics-tabs" role="tablist" aria-label="المؤشرات">
+              <button
+                id="distributionTab"
+                type="button"
+                role="tab"
+                aria-selected="true"
+                aria-controls="distributionPanel"
+                class="active"
+              >
+                التوزيع
+              </button>
+              <button
+                id="trendTab"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="trendPanel"
+                tabindex="-1"
+              >
+                الصرف اليومي
+              </button>
+            </div>
+            <section
+              id="distributionPanel"
+              role="tabpanel"
+              aria-labelledby="distributionTab"
+              tabindex="0"
+            >
+              <div id="spendingDistribution"></div>
+            </section>
+            <section
+              id="trendPanel"
+              class="hidden"
+              role="tabpanel"
+              aria-labelledby="trendTab"
+              tabindex="0"
+            >
+              <select
+                id="chartCategoryFilter"
+                class="compact-select"
+                aria-label="تصنيف الصرف اليومي"
+              >
+                <option value="all">كل التصنيفات</option>
+              </select>
+              <div id="spendingTrend"></div>
+            </section>
+          </div>
+        </section>
+
+        <section
+          id="categoriesSection"
+          class="section-card collapsible-section"
+        >
+          <div class="section-head category-head section-card-head">
+            <div>
+              <h2>التصنيفات</h2>
+              <span id="categoryPosition" class="category-position"></span>
+            </div>
+            <button
+              id="categoriesToggle"
+              class="collapse-btn card-collapse-btn"
+              type="button"
+              aria-expanded="true"
+              aria-controls="categoriesBody"
+              aria-label="تصغير أو تكبير التصنيفات"
+            >
+              <svg class="chevron-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+          </div>
+          <div id="categoriesBody" class="collapsible-body">
+            <section class="category-browser" aria-label="التنقل بين التصنيفات">
+              <div class="category-nav">
+                <button
+                  id="categoryPrev"
+                  class="category-nav-btn"
+                  type="button"
+                  aria-label="التصنيف السابق"
+                >
+                  <svg
+                    class="nav-chevron"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </button>
+                <select
+                  id="categoryCardSelect"
+                  class="category-card-select"
+                  aria-label="اختر التصنيف"
+                ></select>
+                <button
+                  id="categoryNext"
+                  class="category-nav-btn"
+                  type="button"
+                  aria-label="التصنيف التالي"
+                >
+                  <svg
+                    class="nav-chevron"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+              </div>
+              <div id="categoryGrid" class="category-grid"></div>
+            </section>
+          </div>
+        </section>
+
+        <section
+          id="ledgerSection"
+          class="ledger-section section-card collapsible-section"
+        >
+          <div class="section-head ledger-head section-card-head">
+            <div>
+              <div class="ledger-title-row">
+                <h2>العمليات</h2>
+                <button
+                  id="ledgerAllDays"
+                  class="day-all-btn ledger-mode-btn"
+                  type="button"
+                >
+                  كل العمليات
+                </button>
+              </div>
+              <p id="expenseCount" class="muted"></p>
+            </div>
+            <div class="section-head-actions">
+              <select
+                id="categoryFilter"
+                class="compact-select"
+                aria-label="تصفية التصنيف"
+              >
+                <option value="all">كل التصنيفات</option>
+              </select>
+              <button
+                id="ledgerToggle"
+                class="collapse-btn card-collapse-btn"
+                type="button"
+                aria-expanded="true"
+                aria-controls="ledgerBody"
+                aria-label="تصغير أو تكبير العمليات"
+              >
+                <svg
+                  class="chevron-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div id="ledgerBody" class="collapsible-body">
+            <div class="day-pager" aria-label="التنقل بين أيام العمليات">
+              <button
+                id="ledgerPrevDay"
+                class="day-nav-btn"
+                type="button"
+                aria-label="اليوم السابق"
+              >
+                <svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </button>
+              <div class="day-pager-label">
+                <b id="ledgerDayLabel"></b>
+              </div>
+              <button
+                id="ledgerNextDay"
+                class="day-nav-btn"
+                type="button"
+                aria-label="اليوم التالي"
+              >
+                <svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+            </div>
+            <div id="expenseList" class="expense-list"></div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="entryDialog" class="modal">
+      <form id="entryForm" method="dialog" class="modal-card wide">
+        <div class="modal-head">
+          <h3>إضافة عملية</h3>
+          <button type="button" class="close-btn" data-close="entryDialog">
+            ×
+          </button>
+        </div>
+
+        <div
+          class="entry-mode-switch"
+          role="tablist"
+          aria-label="طريقة التسجيل"
+        >
+          <button
+            id="modeDirectBtn"
+            class="mode-btn active"
+            type="button"
+            data-entry-mode="direct"
+          >
+            مصروف مباشر
+          </button>
+          <button
+            id="modeBalanceBtn"
+            class="mode-btn"
+            type="button"
+            data-entry-mode="reconciliation"
+          >
+            حساب الفرق
+          </button>
+        </div>
+        <input id="entryMode" type="hidden" value="direct" />
+
+        <div id="directAmountFields">
+          <label class="field">
+            <span>المبلغ</span>
+            <div class="money-input">
+              <input
+                id="entryAmount"
+                class="money-number"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                required
+              /><b>ر.س</b>
+            </div>
+          </label>
+        </div>
+
+        <div id="balanceAmountFields" class="hidden">
+          <label class="field">
+            <span>المبلغ المتبقي</span>
+            <div class="money-input">
+              <input
+                id="entryBalance"
+                class="money-number"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+              /><b>ر.س</b>
+            </div>
+          </label>
+          <div class="reconcile-preview">
+            <div><span>الرصيد الحالي</span><b id="expectedBalance">—</b></div>
+            <div><span>الفرق</span><b id="reconcileDifference">—</b></div>
+          </div>
+          <div id="sameDayBox" class="same-day-box"></div>
+        </div>
+
+        <label class="field"
+          ><span>التصنيف</span
+          ><select id="entryCategory" required></select
+        ></label>
+        <label class="field"
+          ><span>التاريخ</span><input id="entryDate" type="date" required
+        /></label>
+        <label class="field"
+          ><span>ملاحظة <em>اختياري</em></span
+          ><input id="entryNote" maxlength="160"
+        /></label>
+        <div id="entryGuard" class="inline-note"></div>
+        <button id="entrySubmit" class="btn primary" type="submit">
+          تسجيل
+        </button>
+      </form>
+    </dialog>
+
+    <dialog id="editDialog" class="modal">
+      <form id="editForm" method="dialog" class="modal-card wide">
+        <div class="modal-head">
+          <h3 id="editTitle">تعديل العملية</h3>
+          <button type="button" class="close-btn" data-close="editDialog">
+            ×
+          </button>
+        </div>
+        <input id="editId" type="hidden" />
+        <input id="editType" type="hidden" />
+
+        <div id="editDirectFields">
+          <label class="field"
+            ><span>المبلغ</span>
+            <div class="money-input">
+              <input
+                id="editAmount"
+                class="money-number"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+              /><b>ر.س</b>
+            </div></label
+          >
+        </div>
+        <div id="editReconcileFields" class="hidden">
+          <label class="field"
+            ><span>المبلغ المتبقي</span>
+            <div class="money-input">
+              <input
+                id="editReportedBalance"
+                class="money-number"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+              /><b>ر.س</b>
+            </div></label
+          >
+          <div class="reconcile-preview">
+            <div>
+              <span>الرصيد الحالي</span><b id="editExpectedBalance">—</b>
+            </div>
+            <div><span>الفرق</span><b id="editComputedAmount">—</b></div>
+          </div>
+        </div>
+
+        <label class="field"
+          ><span>التصنيف</span
+          ><select id="editCategory" required></select
+        ></label>
+        <label class="field"
+          ><span>التاريخ</span><input id="editDate" type="date" required
+        /></label>
+        <label class="field"
+          ><span>ملاحظة <em>اختياري</em></span
+          ><input id="editNote" maxlength="160"
+        /></label>
+        <div id="editWarning" class="inline-note"></div>
+        <button class="btn primary" type="submit">حفظ</button>
+      </form>
+    </dialog>
+
+    <dialog id="budgetDialog" class="modal">
+      <form id="budgetForm" method="dialog" class="modal-card wide">
+        <div class="modal-head">
+          <h3>الميزانيات</h3>
+          <button type="button" class="close-btn" data-close="budgetDialog">
+            ×
+          </button>
+        </div>
+        <label class="field total-budget-field">
+          <span>ميزانية الرحلة</span>
+          <div class="money-input">
+            <input
+              id="totalBudgetInput"
+              class="money-number"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              required
+            /><b>ر.س</b>
+          </div>
+        </label>
+        <div class="divider"></div>
+        <p class="field-label">التصنيفات</p>
+        <div id="categoryBudgetFields" class="budget-fields"></div>
+        <div id="budgetDifference" class="budget-difference"></div>
+        <button class="btn primary" type="submit">حفظ</button>
+      </form>
+    </dialog>
+
+    <dialog id="deleteDialog" class="modal small-modal">
+      <form id="deleteForm" method="dialog" class="modal-card">
+        <div class="modal-head">
+          <h3>حذف العملية؟</h3>
+          <button type="button" class="close-btn" data-close="deleteDialog">
+            ×
+          </button>
+        </div>
+        <input id="deleteId" type="hidden" />
+        <div class="dialog-actions">
+          <button type="button" class="btn" data-close="deleteDialog">
+            إلغاء
+          </button>
+          <button class="btn danger" type="submit">حذف</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="app.js?v=8"></script>
+  </body>
+</html>
