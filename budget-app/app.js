@@ -1853,7 +1853,7 @@
       const distance = e.clientX - categorySwipeStart;
       categorySwipeStart = null;
       if (Math.abs(distance) < 45) return;
-      moveCategory(distance > 0 ? -1 : 1);
+      moveCategory(distance > 0 ? 1 : -1);
     });
     els.categoryGrid.addEventListener("pointercancel", () => {
       categorySwipeStart = null;
