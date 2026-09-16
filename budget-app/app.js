@@ -706,7 +706,7 @@
           return segment;
         })
         .join("");
-      const donut = `<div class="donut-wrap"><svg viewBox="0 0 200 200" aria-label="توزيع المصروف حسب التصنيف"><circle cx="100" cy="100" r="76" fill="none" stroke="#edf0f3" stroke-width="24"/>${segments}</svg><div class="donut-total"><span class="donut-label">إجمالي المصروف</span><b class="donut-value">${money(total)}</b><small class="donut-share">المجموع 100%</small></div><div class="donut-help">المس اللون أو اضغط عليه للتفاصيل</div></div>`;
+      const donut = `<div class="donut-wrap"><svg viewBox="0 0 200 200" aria-label="توزيع المصروف حسب التصنيف"><circle cx="100" cy="100" r="76" fill="none" stroke="#edf0f3" stroke-width="24"/>${segments}</svg><div class="donut-total"><span class="donut-label">إجمالي المصروف</span><b class="donut-value">${money(total)}</b><small class="donut-share">المجموع 100%</small></div></div>`;
       const rows = spentCategories
         .map((c) => {
           const budget = num(c.budget);
