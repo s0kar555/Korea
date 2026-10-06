@@ -1542,7 +1542,7 @@
       <div class="budget-mini" style="${categoryStyle(c.id)}">
         <label for="category-budget-${c.id}">${escapeHtml(c.icon)} كاش — إجمالي المبلغ المسحوب</label>
         <input id="category-budget-${c.id}" class="money-number" data-category-id="${c.id}" type="text" inputmode="decimal" autocomplete="off" value="${moneyValue(c.budget)}" />
-        <small class="muted">محفظة مستقلة عن ميزانية الرحلة. المصروف من كاش: ${money(spentForCategory(c.id))} • الرصيد الحالي: ${money(remaining)}. اكتب إجمالي الكاش المسحوب (وليس المتبقي)، ثم استخدم زر الحفظ الخاص بالكاش.</small>
+        <small class="muted">المصروف من كاش: ${money(spentForCategory(c.id))} • الرصيد الحالي: ${money(remaining)}.</small>
         <button class="btn" type="button" data-save-cash-wallet>حفظ رصيد الكاش فقط</button>
       </div>`;
         }
