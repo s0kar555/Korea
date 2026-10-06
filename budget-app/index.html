@@ -392,7 +392,7 @@
         <label id="entryCashTargetField" class="field hidden"
           ><span>مصروف الكاش يُحسب على</span
           ><select id="entryCashTarget"></select
-          >
+          ><small class="muted">يُنقص رصيد الكاش والتصنيف المختار، بينما إجمالي مصروف الرحلة يُحسب مرة واحدة فقط.</small>
         </label>
         <label class="field"
           ><span>التاريخ</span><input id="entryDate" type="date" required
@@ -461,7 +461,7 @@
         <label id="editCashTargetField" class="field hidden"
           ><span>مصروف الكاش يُحسب على</span
           ><select id="editCashTarget"></select
-          ><small class="muted">يُنقص رصيد الكاش والتصنيف المختار، بينما إجمالي مصروف الرحلة يُحسب مرة واحدة فقط.</small>
+          >
         </label>
         <label class="field"
           ><span>التاريخ</span><input id="editDate" type="date" required
@@ -538,6 +538,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="app.js?v=12"></script>
+    <script src="app.js?v=13"></script>
   </body>
 </html>
