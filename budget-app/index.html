@@ -392,7 +392,7 @@
         <label id="entryCashTargetField" class="field hidden"
           ><span>مصروف الكاش يُحسب على</span
           ><select id="entryCashTarget"></select
-          ><small class="muted">يُنقص رصيد الكاش والتصنيف المختار، بينما إجمالي مصروف الرحلة يُحسب مرة واحدة فقط.</small>
+          >
         </label>
         <label class="field"
           ><span>التاريخ</span><input id="entryDate" type="date" required
@@ -461,7 +461,7 @@
         <label id="editCashTargetField" class="field hidden"
           ><span>مصروف الكاش يُحسب على</span
           ><select id="editCashTarget"></select
-          >
+          ><small class="muted">يُنقص رصيد الكاش والتصنيف المختار، بينما إجمالي مصروف الرحلة يُحسب مرة واحدة فقط.</small>
         </label>
         <label class="field"
           ><span>التاريخ</span><input id="editDate" type="date" required
@@ -483,6 +483,20 @@
             ×
           </button>
         </div>
+        <section id="cashWalletPanel" class="budget-mini hidden" style="margin-bottom:16px">
+          <p class="field-label">💵 الكاش — محفظة مستقلة</p>
+          <label class="field" for="cashWalletAmountInput">
+            <span>إجمالي الكاش الذي سحبته أو خصصته حتى الآن</span>
+            <div class="money-input">
+              <input id="cashWalletAmountInput" class="money-number" type="text" inputmode="decimal" autocomplete="off" />
+              <b>ر.س</b>
+            </div>
+          </label>
+          <p id="cashWalletPreview" class="muted" aria-live="polite"></p>
+          <p class="muted">لحساب المتبقي، أدخل إجمالي ما سحبته وليس الرصيد الحالي؛ تُطرح مصروفات كاش المسجلة تلقائيًا. هذا الرقم مستقل عن مجموع ميزانيات الرحلة.</p>
+          <button class="btn primary" id="saveCashWalletBtn" type="button">حفظ مبلغ الكاش فقط</button>
+        </section>
+        <div class="divider"></div>
         <label class="field total-budget-field">
           <span>ميزانية الرحلة</span>
           <div class="money-input">
@@ -524,6 +538,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=12"></script>
   </body>
 </html>
