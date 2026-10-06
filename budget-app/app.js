@@ -32,9 +32,7 @@
     { color: "#4338ca", bg: "#eef2ff", border: "#c7d2fe" },
     { color: "#a16207", bg: "#fffbeb", border: "#fde68a" },
     { color: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" },
-    // الهدايا
     { color: "#e11d48", bg: "#fff1f2", border: "#fecdd3" },
-    // بقالة
     { color: "#047857", bg: "#ecfdf5", border: "#a7f3d0" },
   ];
 
@@ -103,6 +101,8 @@
     "entryAmount",
     "entryBalance",
     "entryCategory",
+    "entryCashTargetField",
+    "entryCashTarget",
     "entryDate",
     "entryNote",
     "expectedBalance",
@@ -122,6 +122,8 @@
     "editExpectedBalance",
     "editComputedAmount",
     "editCategory",
+    "editCashTargetField",
+    "editCashTarget",
     "editDate",
     "editNote",
     "editWarning",
@@ -361,23 +363,64 @@
     };
   }
 
-  function spentForCategory(categoryId, throughDate = null) {
+  function categoryById(id) {
+    return categories.find((c) => Number(c.id) === Number(id));
+  }
+
+  function cashCategory() {
+    return categories.find((c) => String(c.name || "").trim() === "كاش") || null;
+  }
+
+  function isCashCategoryId(id) {
+    const cash = cashCategory();
+    return Boolean(cash && Number(cash.id) === Number(id));
+  }
+
+  function effectiveExpenseCategoryId(expense) {
+    if (
+      isCashCategoryId(expense?.category_id) &&
+      expense?.charged_category_id !== null &&
+      expense?.charged_category_id !== undefined
+    ) {
+      return Number(expense.charged_category_id);
+    }
+    return Number(expense?.category_id);
+  }
+
+  function expenseCountsForCategory(expense, categoryId) {
+    const id = Number(categoryId);
+    if (Number(expense?.category_id) === id) return true;
+    return (
+      isCashCategoryId(expense?.category_id) &&
+      Number(expense?.charged_category_id) === id
+    );
+  }
+
+  function spentForCategory(categoryId, throughDate = null, excludeId = null) {
     return expenses
       .filter(
         (e) =>
-          Number(e.category_id) === Number(categoryId) &&
+          e.id !== excludeId &&
+          expenseCountsForCategory(e, categoryId) &&
           (!throughDate || e.expense_date <= throughDate),
       )
       .reduce((s, e) => s + num(e.amount), 0);
   }
+
+  function reportingSpentForCategory(categoryId, throughDate = null) {
+    return expenses
+      .filter(
+        (e) =>
+          Number(effectiveExpenseCategoryId(e)) === Number(categoryId) &&
+          (!throughDate || e.expense_date <= throughDate),
+      )
+      .reduce((s, e) => s + num(e.amount), 0);
+  }
+
   function totalSpent(throughDate = null) {
     return expenses
       .filter((e) => !throughDate || e.expense_date <= throughDate)
       .reduce((s, e) => s + num(e.amount), 0);
-  }
-
-  function categoryById(id) {
-    return categories.find((c) => Number(c.id) === Number(id));
   }
   function categoryPalette(id) {
     const index = Math.max(
@@ -573,6 +616,28 @@
       if (categories.some((c) => String(c.id) === selected))
         sel.value = selected;
     });
+
+    [els.entryCashTarget, els.editCashTarget].forEach((sel) => {
+      if (!sel) return;
+      const selected = sel.value;
+      const targetOptions = categories
+        .filter((c) => !isCashCategoryId(c.id))
+        .map(
+          (c) =>
+            `<option value="${c.id}">${escapeHtml(c.icon)} ${escapeHtml(c.name)}</option>`,
+        )
+        .join("");
+      sel.innerHTML = `<option value="">اختر التصنيف</option>${targetOptions}`;
+      if (
+        selected &&
+        categories.some(
+          (c) => String(c.id) === selected && !isCashCategoryId(c.id),
+        )
+      )
+        sel.value = selected;
+    });
+    syncEntryCashTargetField();
+    syncEditCashTargetField();
     const currentFilter = els.categoryFilter.value || "all";
     els.categoryFilter.innerHTML = `<option value="all">كل التصنيفات</option>${options}`;
     els.categoryFilter.value = categories.some(
@@ -592,6 +657,31 @@
     )
       ? chartFilter
       : "all";
+  }
+
+  function syncEntryCashTargetField() {
+    if (!els.entryCashTargetField || !els.entryCashTarget) return;
+    const show = isCashCategoryId(els.entryCategory?.value);
+    els.entryCashTargetField.classList.toggle("hidden", !show);
+    els.entryCashTarget.required = show;
+    els.entryCashTarget.disabled = !show;
+    if (!show) els.entryCashTarget.value = "";
+  }
+
+  function syncEditCashTargetField() {
+    if (!els.editCashTargetField || !els.editCashTarget) return;
+    const show = isCashCategoryId(els.editCategory?.value);
+    els.editCashTargetField.classList.toggle("hidden", !show);
+    els.editCashTarget.required = show;
+    els.editCashTarget.disabled = !show;
+    if (!show) els.editCashTarget.value = "";
+  }
+
+  function selectedCashTarget(categoryId, selectValue) {
+    if (!isCashCategoryId(categoryId)) return null;
+    const target = categoryById(selectValue);
+    if (!target || isCashCategoryId(target.id)) return null;
+    return target;
   }
 
   function profileName(userId) {
@@ -633,15 +723,20 @@
 
   function dailySpending(categoryId = "all") {
     return tripDays().map((day) => {
-      const perCategory = categories
+      const requested =
+        categoryId === "all" ? null : categoryById(Number(categoryId));
+      const source = requested ? [requested] : categories;
+      const perCategory = source
         .map((c) => {
           const amount = expenses
-            .filter(
-              (e) =>
-                e.expense_date === day &&
-                Number(e.category_id) === Number(c.id) &&
-                (categoryId === "all" || String(c.id) === String(categoryId)),
-            )
+            .filter((e) => {
+              if (e.expense_date !== day) return false;
+              if (requested && isCashCategoryId(requested.id))
+                return Number(e.category_id) === Number(requested.id);
+              return (
+                Number(effectiveExpenseCategoryId(e)) === Number(c.id)
+              );
+            })
             .reduce((sum, e) => sum + num(e.amount), 0);
           return {
             category: c,
@@ -694,7 +789,13 @@
       spent: spentForCategory(c.id),
       palette: categoryPalette(c.id),
     }));
-    const donutCategories = spentCategories.filter((c) => c.spent > 0);
+    const donutCategories = categories
+      .map((c) => ({
+        ...c,
+        spent: reportingSpentForCategory(c.id),
+        palette: categoryPalette(c.id),
+      }))
+      .filter((c) => c.spent > 0);
 
     const tripProgress = tripProgressStrip();
     if (total <= 0) {
@@ -819,13 +920,26 @@
     ordered.forEach((e) => {
       const amount = num(e.amount);
       tripSpent += amount;
-      const cid = Number(e.category_id);
-      const nextCatSpent = (catSpent.get(cid) || 0) + amount;
-      catSpent.set(cid, nextCatSpent);
-      const c = categoryById(cid);
+      const sourceId = Number(e.category_id);
+      const chargedId =
+        isCashCategoryId(sourceId) && e.charged_category_id
+          ? Number(e.charged_category_id)
+          : null;
+      const affected = [sourceId];
+      if (chargedId && chargedId !== sourceId) affected.push(chargedId);
+      affected.forEach((cid) => {
+        catSpent.set(cid, (catSpent.get(cid) || 0) + amount);
+      });
+      const source = categoryById(sourceId);
+      const charged = chargedId ? categoryById(chargedId) : null;
       map.set(e.id, {
         tripRemaining: round2(num(trip.total_budget) - tripSpent),
-        categoryRemaining: round2(num(c?.budget) - nextCatSpent),
+        categoryRemaining: round2(
+          num(source?.budget) - (catSpent.get(sourceId) || 0),
+        ),
+        chargedCategoryRemaining: charged
+          ? round2(num(charged.budget) - (catSpent.get(chargedId) || 0))
+          : null,
       });
     });
     return map;
@@ -874,7 +988,7 @@
       ? expenses.slice()
       : expenses.filter((e) => e.expense_date === currentLedgerDate);
     if (filter !== "all")
-      list = list.filter((e) => String(e.category_id) === filter);
+      list = list.filter((e) => expenseCountsForCategory(e, Number(filter)));
     if (allDays) {
       list.sort(
         (a, b) =>
@@ -911,9 +1025,14 @@
           name: "تصنيف",
           is_closed: false,
         };
+        const charged =
+          isCashCategoryId(e.category_id) && e.charged_category_id
+            ? categoryById(e.charged_category_id)
+            : null;
         const kind = e.entry_type === "reconciliation" ? "فرق" : "مباشر";
         const metadata = [
           allDays ? weekdayDateFmt.format(parseDate(e.expense_date)) : null,
+          charged ? `مصروف على: ${charged.name}` : null,
           e.note || "بدون ملاحظة",
           kind,
           profileName(e.created_by),
@@ -921,16 +1040,20 @@
         const snapshot = snapshots.get(e.id) || {
           tripRemaining: round2(num(trip.total_budget)),
           categoryRemaining: round2(num(c.budget)),
+          chargedCategoryRemaining: charged ? round2(num(charged.budget)) : null,
         };
         const categoryBalance = `${balanceLabel(snapshot.categoryRemaining)} ${c.name}`;
         const tripBalance = `${balanceLabel(snapshot.tripRemaining)} الرحلة`;
+        const chargedBalance = charged
+          ? `<span class="balance-chip ${snapshot.chargedCategoryRemaining < -0.005 ? "deficit" : ""}">${escapeHtml(`${balanceLabel(snapshot.chargedCategoryRemaining)} ${charged.name}`)}: <b>${money(Math.abs(snapshot.chargedCategoryRemaining))}</b></span>`
+          : "";
         return `
         <div class="expense-row" data-id="${e.id}" style="${categoryStyle(c.id)}">
           <span class="expense-ico">${escapeHtml(c.icon)}</span>
           <div class="expense-main">
             <b>${escapeHtml(c.name)}</b>
             <small class="expense-meta">${metadata.map((value) => `<span>${escapeHtml(value)}</span>`).join('<span aria-hidden="true">•</span>')}</small>
-            <small class="expense-balances"><span class="balance-chip ${snapshot.categoryRemaining < -0.005 ? "deficit" : ""}">${escapeHtml(categoryBalance)}: <b>${money(Math.abs(snapshot.categoryRemaining))}</b></span><span class="balance-chip ${snapshot.tripRemaining < -0.005 ? "deficit" : ""}">${escapeHtml(tripBalance)}: <b>${money(Math.abs(snapshot.tripRemaining))}</b></span></small>
+            <small class="expense-balances"><span class="balance-chip ${snapshot.categoryRemaining < -0.005 ? "deficit" : ""}">${escapeHtml(categoryBalance)}: <b>${money(Math.abs(snapshot.categoryRemaining))}</b></span>${chargedBalance}<span class="balance-chip ${snapshot.tripRemaining < -0.005 ? "deficit" : ""}">${escapeHtml(tripBalance)}: <b>${money(Math.abs(snapshot.tripRemaining))}</b></span></small>
           </div>
           <div class="expense-amount">${money(e.amount)}</div>
           <div class="row-actions">
@@ -1185,7 +1308,11 @@
     els.sameDayBox.innerHTML = dayOps
       .map((e) => {
         const c = categoryById(e.category_id);
-        return `<div class="same-day-item"><span>${escapeHtml(c?.name || "تصنيف")}${e.note ? ` • ${escapeHtml(e.note)}` : ""}</span><b>${money(e.amount)}</b></div>`;
+        const charged =
+          isCashCategoryId(e.category_id) && e.charged_category_id
+            ? categoryById(e.charged_category_id)
+            : null;
+        return `<div class="same-day-item"><span>${escapeHtml(c?.name || "تصنيف")}${charged ? ` • على ${escapeHtml(charged.name)}` : ""}${e.note ? ` • ${escapeHtml(e.note)}` : ""}</span><b>${money(e.amount)}</b></div>`;
       })
       .join("");
   }
@@ -1195,15 +1322,16 @@
     totalRemaining,
     category,
     categoryRemaining,
+    extraItems = [],
   ) {
     const label = (value) => (value < -0.005 ? "عجز" : "متبقي");
-    target.className =
-      totalRemaining < -0.005 || categoryRemaining < -0.005
-        ? "inline-note danger"
-        : "inline-note good";
     const items = [];
     if (category) items.push({ name: category.name, value: categoryRemaining });
+    items.push(...extraItems);
     items.push({ name: "الرحلة", value: totalRemaining });
+    target.className = items.some((item) => item.value < -0.005)
+      ? "inline-note danger"
+      : "inline-note good";
     target.innerHTML = items
       .map(
         (item) =>
@@ -1214,12 +1342,20 @@
 
   function updateDirectPreview() {
     if (!trip) return;
+    syncEntryCashTargetField();
     const amount = round2(num(els.entryAmount.value));
     const c = categoryById(els.entryCategory.value);
-    if (c?.is_closed) {
+    const charged = selectedCashTarget(c?.id, els.entryCashTarget?.value);
+    if (c?.is_closed || charged?.is_closed) {
       els.entryGuard.className = "inline-note danger";
       els.entryGuard.textContent =
-        "هذا التصنيف مكتمل. افتحه من الميزانيات قبل إضافة عملية جديدة.";
+        "أحد التصنيفات المختارة مكتمل. افتحه من الميزانيات قبل إضافة عملية جديدة.";
+      els.entrySubmit.disabled = true;
+      return;
+    }
+    if (isCashCategoryId(c?.id) && !charged) {
+      els.entryGuard.className = "inline-note danger";
+      els.entryGuard.textContent = "اختر التصنيف الذي صُرف عليه مبلغ الكاش.";
       els.entrySubmit.disabled = true;
       return;
     }
@@ -1229,24 +1365,41 @@
     const catRemaining = c
       ? round2(num(c.budget) - spentForCategory(c.id) - amount)
       : 0;
+    const chargedRemaining = charged
+      ? round2(num(charged.budget) - spentForCategory(charged.id) - amount)
+      : null;
     if (!amount) {
       els.entryGuard.className = "inline-note";
       els.entryGuard.textContent = "";
       els.entrySubmit.disabled = false;
       return;
     }
-    showRemainingPreview(els.entryGuard, totalRemaining, c, catRemaining);
+    showRemainingPreview(
+      els.entryGuard,
+      totalRemaining,
+      c,
+      catRemaining,
+      charged ? [{ name: charged.name, value: chargedRemaining }] : [],
+    );
     els.entrySubmit.disabled = false;
   }
 
   function updateBalancePreview() {
     if (!trip) return;
     const date = clampTripDate(els.entryDate.value || defaultEntryDate());
+    syncEntryCashTargetField();
     const c = categoryById(els.entryCategory.value);
-    if (c?.is_closed) {
+    const charged = selectedCashTarget(c?.id, els.entryCashTarget?.value);
+    if (c?.is_closed || charged?.is_closed) {
       els.entryGuard.className = "inline-note danger";
       els.entryGuard.textContent =
-        "هذا التصنيف مكتمل. افتحه من الميزانيات قبل إضافة عملية جديدة.";
+        "أحد التصنيفات المختارة مكتمل. افتحه من الميزانيات قبل إضافة عملية جديدة.";
+      els.entrySubmit.disabled = true;
+      return;
+    }
+    if (isCashCategoryId(c?.id) && !charged) {
+      els.entryGuard.className = "inline-note danger";
+      els.entryGuard.textContent = "اختر التصنيف الذي صُرف عليه مبلغ الكاش.";
       els.entrySubmit.disabled = true;
       return;
     }
@@ -1285,11 +1438,17 @@
       const catRemaining = c
         ? round2(num(c.budget) - spentForCategory(c.id) - diff)
         : 0;
+      const chargedRemaining = charged
+        ? round2(
+            num(charged.budget) - spentForCategory(charged.id) - diff,
+          )
+        : null;
       showRemainingPreview(
         els.entryGuard,
         round2(remainingAllBefore - diff),
         c,
         catRemaining,
+        charged ? [{ name: charged.name, value: chargedRemaining }] : [],
       );
       els.entrySubmit.disabled = false;
     }
@@ -1306,13 +1465,17 @@
     const fields = [
       ...els.categoryBudgetFields.querySelectorAll("input[data-category-id]"),
     ];
-    const sum = round2(fields.reduce((s, input) => s + num(input.value), 0));
+    const sum = round2(
+      fields
+        .filter((input) => !isCashCategoryId(input.dataset.categoryId))
+        .reduce((s, input) => s + num(input.value), 0),
+    );
     const diff = round2(sum - total);
     const balanced = Math.abs(diff) <= 0.005;
     els.budgetDifference.classList.toggle("invalid", !balanced);
     els.budgetDifference.innerHTML = balanced
-      ? `مجموع التصنيفات: <b>${money(sum)}</b> • مطابق لميزانية الرحلة`
-      : `مجموع التصنيفات: <b>${money(sum)}</b> • يجب أن يساوي ميزانية الرحلة. الفرق: <b>${money(Math.abs(diff))}</b>`;
+      ? `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • مطابق لميزانية الرحلة`
+      : `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • يجب أن يساوي ميزانية الرحلة. الفرق: <b>${money(Math.abs(diff))}</b>`;
     const submit = els.budgetForm?.querySelector('button[type="submit"]');
     if (submit) submit.disabled = !balanced;
     updateTransferControls();
@@ -1320,7 +1483,12 @@
 
   function transferOptions(sourceId) {
     return categories
-      .filter((c) => Number(c.id) !== Number(sourceId) && !c.is_closed)
+      .filter(
+        (c) =>
+          Number(c.id) !== Number(sourceId) &&
+          !c.is_closed &&
+          !isCashCategoryId(c.id),
+      )
       .map(
         (c) =>
           `<option value="${c.id}">${escapeHtml(c.icon)} ${escapeHtml(c.name)}</option>`,
@@ -1344,6 +1512,10 @@
         `[data-transfer-text-id="${c.id}"]`,
       );
       if (!input || !checkbox || !box || !text) return;
+      if (isCashCategoryId(c.id)) {
+        box.classList.add("hidden");
+        return;
+      }
       const diff = round2(num(input.value) - spentForCategory(c.id));
       const needsTransfer = checkbox.checked && Math.abs(diff) > 0.005;
       box.classList.toggle("hidden", !needsTransfer);
@@ -1399,6 +1571,10 @@
         draft.set(cid, spent);
         continue;
       }
+      if (isCashCategoryId(cid))
+        return {
+          error: "لإغلاق كاش، اجعل رصيد محفظة كاش مساويًا للمبلغ المصروف منها.",
+        };
       const select = els.categoryBudgetFields.querySelector(
         `[data-transfer-target-id="${cid}"]`,
       );
@@ -1416,11 +1592,17 @@
 
     const total = round2(num(els.totalBudgetInput.value));
     const sum = round2(
-      [...draft.values()].reduce((acc, value) => acc + num(value), 0),
+      categories
+        .filter((c) => !isCashCategoryId(c.id))
+        .reduce(
+          (acc, c) => acc + num(draft.get(Number(c.id))),
+          0,
+        ),
     );
     if (Math.abs(sum - total) > 0.005)
       return {
-        error: "مجموع ميزانيات التصنيفات يجب أن يساوي ميزانية الرحلة بالكامل.",
+        error:
+          "مجموع ميزانيات تصنيفات الصرف (بدون كاش) يجب أن يساوي ميزانية الرحلة بالكامل.",
       };
     return {
       payload: categories.map((c) => ({
@@ -1438,6 +1620,8 @@
     els.editId.value = e.id;
     els.editType.value = e.entry_type;
     els.editCategory.value = e.category_id;
+    els.editCashTarget.value = e.charged_category_id || "";
+    syncEditCashTargetField();
     els.editDate.value = clampTripDate(e.expense_date);
     els.editNote.value = e.note || "";
     els.editWarning.className = "inline-note";
@@ -1460,42 +1644,66 @@
 
   function updateEditDirectGuard() {
     if (!trip) return;
+    syncEditCashTargetField();
     const id = els.editId.value;
     const old = expenses.find((x) => x.id === id);
     if (!old || old.entry_type !== "direct") return;
     const c = categoryById(els.editCategory.value);
+    const charged = selectedCashTarget(c?.id, els.editCashTarget?.value);
     const submit = els.editForm.querySelector('button[type="submit"]');
     const amount = round2(num(els.editAmount.value));
+    if (isCashCategoryId(c?.id) && !charged) {
+      els.editWarning.className = "inline-note danger";
+      els.editWarning.textContent = "اختر التصنيف الذي صُرف عليه مبلغ الكاش.";
+      submit.disabled = true;
+      return;
+    }
     const spentOthers = expenses
       .filter((e) => e.id !== id)
       .reduce((s, e) => s + num(e.amount), 0);
     const remaining = round2(num(trip.total_budget) - spentOthers - amount);
-    const catSpentOthers = c
-      ? expenses
-          .filter((e) => e.id !== id && Number(e.category_id) === Number(c.id))
-          .reduce((s, e) => s + num(e.amount), 0)
-      : 0;
     const catRemaining = c
-      ? round2(num(c.budget) - catSpentOthers - amount)
+      ? round2(num(c.budget) - spentForCategory(c.id, null, id) - amount)
       : 0;
+    const chargedRemaining = charged
+      ? round2(
+          num(charged.budget) -
+            spentForCategory(charged.id, null, id) -
+            amount,
+        )
+      : null;
     if (amount <= 0) {
       els.editWarning.className = "inline-note danger";
       els.editWarning.textContent = "المبلغ يجب أن يكون أكبر من صفر";
       submit.disabled = true;
     } else {
-      showRemainingPreview(els.editWarning, remaining, c, catRemaining);
+      showRemainingPreview(
+        els.editWarning,
+        remaining,
+        c,
+        catRemaining,
+        charged ? [{ name: charged.name, value: chargedRemaining }] : [],
+      );
       submit.disabled = false;
     }
   }
 
   function updateEditReconcilePreview() {
     if (!trip) return;
+    syncEditCashTargetField();
     const id = els.editId.value;
     const date = clampTripDate(els.editDate.value);
     const actualRaw = els.editReportedBalance.value;
     if (!id || !date) return;
     const c = categoryById(els.editCategory.value);
+    const charged = selectedCashTarget(c?.id, els.editCashTarget?.value);
     const submit = els.editForm.querySelector('button[type="submit"]');
+    if (isCashCategoryId(c?.id) && !charged) {
+      els.editWarning.className = "inline-note danger";
+      els.editWarning.textContent = "اختر التصنيف الذي صُرف عليه مبلغ الكاش.";
+      submit.disabled = true;
+      return;
+    }
     const expected = expectedBalanceFor(date, id);
     els.editExpectedBalance.textContent = money(expected);
     if (actualRaw === "") {
@@ -1526,18 +1734,22 @@
       els.editWarning.textContent = "الفرق صفر";
       submit.disabled = true;
     } else {
-      const catSpentOthers = c
-        ? expenses
-            .filter(
-              (e) => e.id !== id && Number(e.category_id) === Number(c.id),
-            )
-            .reduce((s, e) => s + num(e.amount), 0)
+      const catRemaining = c
+        ? round2(num(c.budget) - spentForCategory(c.id, null, id) - diff)
         : 0;
+      const chargedRemaining = charged
+        ? round2(
+            num(charged.budget) -
+              spentForCategory(charged.id, null, id) -
+              diff,
+          )
+        : null;
       showRemainingPreview(
         els.editWarning,
         totalRemainingAfter,
         c,
-        c ? round2(num(c.budget) - catSpentOthers - diff) : 0,
+        catRemaining,
+        charged ? [{ name: charged.name, value: chargedRemaining }] : [],
       );
       submit.disabled = false;
     }
@@ -1580,14 +1792,19 @@
     const mode = els.entryMode.value;
     const categoryId = Number(els.entryCategory.value);
     const category = categoryById(categoryId);
+    const charged = selectedCashTarget(categoryId, els.entryCashTarget?.value);
     const expenseDate = els.entryDate.value;
     const note = els.entryNote.value.trim() || null;
     if (!isDateInTrip(expenseDate)) {
       showToast("التاريخ يجب أن يكون من 1 إلى 30 أكتوبر فقط.");
       return;
     }
-    if (category?.is_closed) {
-      showToast("هذا التصنيف مكتمل.");
+    if (category?.is_closed || charged?.is_closed) {
+      showToast("أحد التصنيفات المختارة مكتمل.");
+      return;
+    }
+    if (isCashCategoryId(categoryId) && !charged) {
+      showToast("اختر التصنيف الذي صُرف عليه مبلغ الكاش.");
       return;
     }
     let payload, successText;
@@ -1598,6 +1815,7 @@
       if (diff <= 0) return;
       payload = {
         category_id: categoryId,
+        charged_category_id: charged ? Number(charged.id) : null,
         amount: diff,
         expense_date: expenseDate,
         entry_type: "reconciliation",
@@ -1611,6 +1829,7 @@
       if (amount <= 0) return;
       payload = {
         category_id: categoryId,
+        charged_category_id: charged ? Number(charged.id) : null,
         amount,
         expense_date: expenseDate,
         entry_type: "direct",
@@ -1642,11 +1861,18 @@
     if (profile?.role !== "admin") return;
     const id = els.editId.value;
     const type = els.editType.value;
+    const categoryId = Number(els.editCategory.value);
+    const charged = selectedCashTarget(categoryId, els.editCashTarget?.value);
     const payload = {
-      category_id: Number(els.editCategory.value),
+      category_id: categoryId,
+      charged_category_id: charged ? Number(charged.id) : null,
       expense_date: els.editDate.value,
       note: els.editNote.value.trim() || null,
     };
+    if (isCashCategoryId(categoryId) && !charged) {
+      showToast("اختر التصنيف الذي صُرف عليه مبلغ الكاش.");
+      return;
+    }
     if (!isDateInTrip(payload.expense_date)) {
       showToast("التاريخ يجب أن يكون من 1 إلى 30 أكتوبر فقط.");
       return;
@@ -1799,7 +2025,11 @@
         setEntryMode("reconciliation", { clearValues: true });
       setTimeout(() => els.entryBalance.focus(), 20);
     });
-    els.entryCategory.addEventListener("change", updateEntryPreview);
+    els.entryCategory.addEventListener("change", () => {
+      syncEntryCashTargetField();
+      updateEntryPreview();
+    });
+    els.entryCashTarget.addEventListener("change", updateEntryPreview);
     els.entryDate.addEventListener("change", () => {
       els.entryDate.value = clampTripDate(els.entryDate.value);
       updateEntryPreview();
@@ -1886,6 +2116,11 @@
     bindMoneyInput(els.editAmount, updateEditDirectGuard);
     bindMoneyInput(els.editReportedBalance, updateEditReconcilePreview);
     els.editCategory.addEventListener("change", () => {
+      syncEditCashTargetField();
+      if (els.editType.value === "reconciliation") updateEditReconcilePreview();
+      else updateEditDirectGuard();
+    });
+    els.editCashTarget.addEventListener("change", () => {
       if (els.editType.value === "reconciliation") updateEditReconcilePreview();
       else updateEditDirectGuard();
     });
