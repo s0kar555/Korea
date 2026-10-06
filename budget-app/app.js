@@ -1932,7 +1932,7 @@
     // but prepareBudgetPayload excludes it from the trip allocation total.
     const submit = els.budgetForm.querySelector('button[type="submit"]');
     setBusy(submit, true);
-    const { error } = await db.rpc("save_budgets", {
+    const { error } = await db.rpc("save_budgets_cash_v3", {
       p_total: total,
       p_categories: prepared.payload,
     });
@@ -1979,11 +1979,16 @@
       msg.includes("Category budgets must equal trip total") ||
       msg.includes("Budget payload must allocate the full trip budget")
     )
-      return "قاعدة حفظ الميزانيات في Supabase ما زالت بالإصدار القديم. شغّل ملف SQL الجديد ثم حاول مرة أخرى.";
+      return "التطبيق استدعى قاعدة حفظ قديمة بالخطأ. تأكد أنك رفعت app.js الجديد (v14).";
     if (msg.includes("Invalid cash amount"))
       return "قيمة الكاش غير صحيحة؛ أدخل مبلغًا غير سالب.";
     if (msg.includes("Cash category not found"))
       return "لم يتم العثور على قسم كاش في قاعدة البيانات.";
+    if (
+      msg.includes("save_budgets_cash_v3") &&
+      (msg.includes("Could not find the function") || msg.includes("schema cache"))
+    )
+      return "دالة حفظ الميزانيات الجديدة غير موجودة في نفس مشروع Supabase الذي يتصل به التطبيق. شغّل ملف SQL v3 في نفس المشروع ثم أعد المحاولة.";
     if (msg.includes("Not allowed") || error?.code === "42501")
       return "التعديل للأدمن فقط.";
     return "تعذر تنفيذ العملية. راجع البيانات.";
