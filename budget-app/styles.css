@@ -468,9 +468,16 @@ select:focus {
 }
 .category-card-select {
   min-width: 0;
+  min-height: 44px;
   padding-block: 8px;
   text-align: center;
   font-weight: 750;
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+  touch-action: manipulation;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
 }
 .category-grid {
   display: block;
@@ -2123,5 +2130,15 @@ summary:focus-visible {
   .ledger-mode-btn {
     font-size: 0.61rem;
     padding: 4px 8px;
+  }
+}
+
+
+/* Mobile: keep the category picker easy to tap and prevent iOS focus zoom. */
+@media (max-width: 760px) {
+  .category-card-select {
+    min-height: 46px;
+    font-size: 16px;
+    line-height: 1.25;
   }
 }
