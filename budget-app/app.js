@@ -51,6 +51,7 @@
   let currentLedgerMode = "day";
   let summaryCollapsed = false;
   let testDateOverride = null;
+  let cashWalletTotal = 0;
 
   const $ = (id) => document.getElementById(id);
   const els = {};
@@ -1116,17 +1117,21 @@
     if (!db) return false;
     let lastError = null;
     for (let attempt = 0; attempt <= retries; attempt += 1) {
-      const [tripRes, catRes, expRes, profRes] = await Promise.all([
+      const [tripRes, catRes, expRes, profRes, cashRes] = await Promise.all([
         db.from("trip").select("*").eq("id", 1).single(),
         db.from("categories").select("*").order("sort_order"),
         loadExpenses(),
         db.from("profiles").select("user_id,username,display_name,role"),
+        db.rpc("get_cash_wallet_v4"),
       ]);
       lastError =
-        tripRes.error || catRes.error || expRes.error || profRes.error;
+        tripRes.error || catRes.error || expRes.error || profRes.error || cashRes.error;
       if (!lastError) {
         trip = tripRes.data;
         categories = catRes.data || [];
+        cashWalletTotal = round2(num(cashRes.data));
+        const cash = categories.find((c) => String(c.name || "").trim() === "كاش");
+        if (cash) cash.budget = cashWalletTotal;
         expenses = (expRes.data || []).filter(
           (e) =>
             e.expense_date >= trip.start_date &&
@@ -1173,6 +1178,7 @@
     categories = [];
     expenses = [];
     profiles = [];
+    cashWalletTotal = 0;
     clearTimeout(reloadTimer);
     [
       els.entryDialog,
@@ -1203,6 +1209,11 @@
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "trip" },
+        scheduleReload,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "cash_wallet" },
         scheduleReload,
       )
       .subscribe();
@@ -1475,18 +1486,18 @@
         .reduce((s, input) => s + num(input.value), 0),
     );
     const diff = round2(total - sum);
+    const invalidAllocation = Math.abs(diff) > 0.005;
     const overAllocated = sum - total > 0.005;
-    const exactlyAllocated = Math.abs(diff) <= 0.005;
-    els.budgetDifference.classList.toggle("invalid", overAllocated);
+    els.budgetDifference.classList.toggle("invalid", invalidAllocation);
     if (overAllocated) {
-      els.budgetDifference.innerHTML = `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • يتجاوز ميزانية الرحلة بـ <b>${money(sum - total)}</b>`;
-    } else if (exactlyAllocated) {
-      els.budgetDifference.innerHTML = `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • موزعة بالكامل`;
+      els.budgetDifference.innerHTML = `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • يتجاوز ميزانية الرحلة بـ <b>${money(sum - total)}</b> • رصيد الكاش مستقل ولا يدخل في هذا المجموع`;
+    } else if (invalidAllocation) {
+      els.budgetDifference.innerHTML = `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • متبقي للتوزيع: <b>${money(diff)}</b> • رصيد الكاش مستقل ولا يدخل في هذا المجموع`;
     } else {
-      els.budgetDifference.innerHTML = `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • غير موزع: <b>${money(diff)}</b> • رصيد الكاش مستقل ولا يدخل في هذا المجموع`;
+      els.budgetDifference.innerHTML = `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • موزعة بالكامل • رصيد الكاش مستقل ولا يدخل في هذا المجموع`;
     }
     const submit = els.budgetForm?.querySelector('button[type="submit"]');
-    if (submit) submit.disabled = overAllocated;
+    if (submit) submit.disabled = invalidAllocation;
     updateTransferControls();
   }
 
@@ -1605,6 +1616,8 @@
     }
 
     const total = round2(num(els.totalBudgetInput.value));
+    const cash = cashCategory();
+    const cashAmount = cash ? round2(num(draft.get(Number(cash.id)))) : 0;
     const sum = round2(
       categories
         .filter((c) => !isCashCategoryId(c.id))
@@ -1613,16 +1626,17 @@
           0,
         ),
     );
-    if (sum - total > 0.005)
+    if (Math.abs(sum - total) > 0.005)
       return {
         error:
-          "مجموع ميزانيات تصنيفات الصرف (بدون كاش) لا يمكن أن يتجاوز ميزانية الرحلة.",
+          "مجموع ميزانيات تصنيفات الصرف (بدون كاش) يجب أن يساوي ميزانية الرحلة. الكاش مستقل ولا يدخل في هذا المجموع.",
       };
     return {
+      cashAmount,
       payload: categories.map((c) => ({
         id: Number(c.id),
-        budget: round2(draft.get(Number(c.id))),
-        is_closed: closed.get(Number(c.id)),
+        budget: isCashCategoryId(c.id) ? 0 : round2(draft.get(Number(c.id))),
+        is_closed: isCashCategoryId(c.id) ? false : closed.get(Number(c.id)),
       })),
     };
   }
@@ -1928,13 +1942,14 @@
       showToast(prepared.error);
       return;
     }
-    // Cash is included in the payload so its wallet balance is saved,
-    // but prepareBudgetPayload excludes it from the trip allocation total.
+    // Cash is stored in its own wallet table. The Cash category budget sent
+    // to the legacy category budget system is always zero.
     const submit = els.budgetForm.querySelector('button[type="submit"]');
     setBusy(submit, true);
-    const { error } = await db.rpc("save_budgets_cash_v3", {
+    const { error } = await db.rpc("save_budgets_cash_v4", {
       p_total: total,
       p_categories: prepared.payload,
+      p_cash: prepared.cashAmount,
     });
     setBusy(submit, false);
     if (error) {
@@ -1977,18 +1992,19 @@
       return "مجموع ميزانيات التصنيفات (بدون كاش) لا يمكن أن يتجاوز ميزانية الرحلة.";
     if (
       msg.includes("Category budgets must equal trip total") ||
-      msg.includes("Budget payload must allocate the full trip budget")
+      msg.includes("Budget payload must allocate the full trip budget") ||
+      msg.includes("Spending category budgets must equal trip total")
     )
-      return "التطبيق استدعى قاعدة حفظ قديمة بالخطأ. تأكد أنك رفعت app.js الجديد (v14).";
+      return "مجموع ميزانيات تصنيفات الصرف (بدون كاش) يجب أن يساوي ميزانية الرحلة. مبلغ الكاش مستقل تمامًا.";
     if (msg.includes("Invalid cash amount"))
       return "قيمة الكاش غير صحيحة؛ أدخل مبلغًا غير سالب.";
     if (msg.includes("Cash category not found"))
       return "لم يتم العثور على قسم كاش في قاعدة البيانات.";
     if (
-      msg.includes("save_budgets_cash_v3") &&
+      (msg.includes("save_budgets_cash_v4") || msg.includes("get_cash_wallet_v4")) &&
       (msg.includes("Could not find the function") || msg.includes("schema cache"))
     )
-      return "دالة حفظ الميزانيات الجديدة غير موجودة في نفس مشروع Supabase الذي يتصل به التطبيق. شغّل ملف SQL v3 في نفس المشروع ثم أعد المحاولة.";
+      return "تحديث الكاش v4 غير موجود في نفس مشروع Supabase. شغّل ملف SQL v4 ثم أعد تحميل الصفحة.";
     if (msg.includes("Not allowed") || error?.code === "42501")
       return "التعديل للأدمن فقط.";
     return "تعذر تنفيذ العملية. راجع البيانات.";
