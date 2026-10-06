@@ -1474,14 +1474,19 @@
         .filter((input) => !isCashCategoryId(input.dataset.categoryId))
         .reduce((s, input) => s + num(input.value), 0),
     );
-    const diff = round2(sum - total);
-    const balanced = Math.abs(diff) <= 0.005;
-    els.budgetDifference.classList.toggle("invalid", !balanced);
-    els.budgetDifference.innerHTML = balanced
-      ? `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • مطابق لميزانية الرحلة`
-      : `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • يجب أن يساوي ميزانية الرحلة. الفرق: <b>${money(Math.abs(diff))}</b>`;
+    const diff = round2(total - sum);
+    const overAllocated = sum - total > 0.005;
+    const exactlyAllocated = Math.abs(diff) <= 0.005;
+    els.budgetDifference.classList.toggle("invalid", overAllocated);
+    if (overAllocated) {
+      els.budgetDifference.innerHTML = `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • يتجاوز ميزانية الرحلة بـ <b>${money(sum - total)}</b>`;
+    } else if (exactlyAllocated) {
+      els.budgetDifference.innerHTML = `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • موزعة بالكامل`;
+    } else {
+      els.budgetDifference.innerHTML = `مجموع تصنيفات الصرف (بدون كاش): <b>${money(sum)}</b> • غير موزع: <b>${money(diff)}</b> • رصيد الكاش مستقل ولا يدخل في هذا المجموع`;
+    }
     const submit = els.budgetForm?.querySelector('button[type="submit"]');
-    if (submit) submit.disabled = !balanced;
+    if (submit) submit.disabled = overAllocated;
     updateTransferControls();
   }
 
@@ -1608,10 +1613,10 @@
           0,
         ),
     );
-    if (Math.abs(sum - total) > 0.005)
+    if (sum - total > 0.005)
       return {
         error:
-          "مجموع ميزانيات تصنيفات الصرف (بدون كاش) يجب أن يساوي ميزانية الرحلة بالكامل.",
+          "مجموع ميزانيات تصنيفات الصرف (بدون كاش) لا يمكن أن يتجاوز ميزانية الرحلة.",
       };
     return {
       payload: categories.map((c) => ({
@@ -1968,11 +1973,13 @@
       return "التصنيف مكتمل. افتحه أولًا.";
     if (msg.includes("Closed category must have zero balance"))
       return "لا يمكن إكمال الصرف بوجود فائض أو عجز. رحّل الفرق أولًا.";
+    if (msg.includes("Spending category budgets exceed trip total"))
+      return "مجموع ميزانيات التصنيفات (بدون كاش) لا يمكن أن يتجاوز ميزانية الرحلة.";
     if (
       msg.includes("Category budgets must equal trip total") ||
       msg.includes("Budget payload must allocate the full trip budget")
     )
-      return "مجموع ميزانيات التصنيفات يجب أن يساوي ميزانية الرحلة بالكامل.";
+      return "قاعدة حفظ الميزانيات في Supabase ما زالت بالإصدار القديم. شغّل ملف SQL الجديد ثم حاول مرة أخرى.";
     if (msg.includes("Invalid cash amount"))
       return "قيمة الكاش غير صحيحة؛ أدخل مبلغًا غير سالب.";
     if (msg.includes("Cash category not found"))
