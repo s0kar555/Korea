@@ -1542,8 +1542,7 @@
       <div class="budget-mini" style="${categoryStyle(c.id)}">
         <label for="category-budget-${c.id}">${escapeHtml(c.icon)} كاش — إجمالي المبلغ المسحوب</label>
         <input id="category-budget-${c.id}" class="money-number" data-category-id="${c.id}" type="text" inputmode="decimal" autocomplete="off" value="${moneyValue(c.budget)}" />
-        <small class="muted">المصروف من كاش: ${money(spentForCategory(c.id))} • الرصيد الحالي: ${money(remaining)}.</small>
-        <button class="btn" type="button" data-save-cash-wallet>حفظ رصيد الكاش فقط</button>
+        <small class="muted">المصروف من كاش: ${money(spentForCategory(c.id))} • الرصيد الحالي: ${money(remaining)}</small>
       </div>`;
         }
         return `
@@ -1915,44 +1914,6 @@
     await loadAll({ quiet: true });
   }
 
-  async function handleCashWalletSave(button) {
-    if (profile?.role !== "admin" || !trip) return;
-    const cash = cashCategory();
-    const field = cash && els.categoryBudgetFields.querySelector(
-      `[data-category-id="${cash.id}"]`,
-    );
-    if (!field) {
-      showToast("تعذر العثور على قسم كاش.");
-      return;
-    }
-    const rawAmount = normalizeDigits(field.value).replace(/,/g, "").trim();
-    if (!/^\d+(?:\.\d{1,2})?$/.test(rawAmount)) {
-      showToast("أدخل إجمالي الكاش المسحوب بشكل صحيح (صفر أو أكثر).");
-      return;
-    }
-    const amount = round2(Number(rawAmount));
-    if (!Number.isFinite(amount) || amount < 0) {
-      showToast("قيمة الكاش غير صحيحة.");
-      return;
-    }
-
-    setBusy(button, true);
-    const { error } = await db.rpc("save_cash_wallet", { p_amount: amount });
-    setBusy(button, false);
-    if (error) {
-      console.error(error);
-      showToast(readableDbError(error));
-      return;
-    }
-
-    cash.budget = amount;
-    cash.is_closed = false;
-    setMoneyField(field, amount);
-    renderDashboard();
-    renderAnalytics();
-    showToast("تم تحديث رصيد الكاش فقط؛ ميزانيات الرحلة وبقية الأقسام لم تتغير.");
-  }
-
   async function handleBudgets(e) {
     e.preventDefault();
     if (profile?.role !== "admin") return;
@@ -1962,8 +1923,8 @@
       showToast(prepared.error);
       return;
     }
-    // Cash wallet amount is excluded from allocations and is never compared
-    // with the total trip budget. prepareBudgetPayload validates real categories.
+    // Cash is included in the payload so its wallet balance is saved,
+    // but prepareBudgetPayload excludes it from the trip allocation total.
     const submit = els.budgetForm.querySelector('button[type="submit"]');
     setBusy(submit, true);
     const { error } = await db.rpc("save_budgets", {
@@ -1977,7 +1938,7 @@
       return;
     }
     closeDialog(els.budgetDialog);
-    showToast("تم حفظ الميزانيات");
+    showToast("تم حفظ الميزانيات ورصيد الكاش");
     await loadAll({ quiet: true });
   }
 
@@ -2189,10 +2150,6 @@
     els.categoryBudgetFields.addEventListener("change", (e) => {
       if (e.target.matches("[data-closed-id], [data-transfer-target-id]"))
         updateTransferControls();
-    });
-    els.categoryBudgetFields.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-save-cash-wallet]");
-      if (button) handleCashWalletSave(button);
     });
     els.budgetForm.addEventListener("submit", handleBudgets);
     els.deleteForm.addEventListener("submit", handleDelete);
