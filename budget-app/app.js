@@ -32,6 +32,10 @@
     { color: "#4338ca", bg: "#eef2ff", border: "#c7d2fe" },
     { color: "#a16207", bg: "#fffbeb", border: "#fde68a" },
     { color: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" },
+    // الهدايا
+    { color: "#e11d48", bg: "#fff1f2", border: "#fecdd3" },
+    // بقالة
+    { color: "#047857", bg: "#ecfdf5", border: "#a7f3d0" },
   ];
 
   let db = null;
@@ -1821,10 +1825,21 @@
     );
     els.chartCategoryFilter.addEventListener("change", renderAnalytics);
     els.categoryFilter.addEventListener("change", renderExpenses);
-    els.categoryCardSelect.addEventListener("change", () => {
-      currentCategoryId = Number(els.categoryCardSelect.value);
+
+    const syncCategoryCardSelect = () => {
+      const categoryId = Number(els.categoryCardSelect.value);
+      if (!Number.isFinite(categoryId) || !categoryById(categoryId)) return;
+      if (Number(currentCategoryId) === categoryId) return;
+
+      currentCategoryId = categoryId;
       renderDashboard();
-    });
+    };
+
+    // Some mobile browsers update a native <select> on `input`, while
+    // others only fire `change` after the picker closes. Listen to both.
+    els.categoryCardSelect.addEventListener("input", syncCategoryCardSelect);
+    els.categoryCardSelect.addEventListener("change", syncCategoryCardSelect);
+
     els.categoryPrev.addEventListener("click", () => moveCategory(-1));
     els.categoryNext.addEventListener("click", () => moveCategory(1));
     els.ledgerPrevDay.addEventListener("click", () => moveLedgerDay(-1));
