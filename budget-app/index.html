@@ -94,6 +94,19 @@
       </section> -->
         <!-- OPTIONAL TEST DATE CONTROLS — END -->
 
+
+        <!-- Added navigation only; original UI below is untouched. -->
+        <section id="tripSwitcher" class="section-card" style="padding:12px 16px;margin:12px 0;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
+          <strong id="tripStatusLabel">رحلاتي</strong>
+          <a class="btn" id="archiveTripLink" href="archive/">أرشيف كوريا</a>
+          <a class="btn hidden" id="futureTripLink" href="./">العودة للرحلة القادمة</a>
+          <div id="nextTripDates" class="hidden" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            <label>من <input id="nextTripStart" type="date"></label>
+            <label>إلى <input id="nextTripEnd" type="date"></label>
+            <button class="btn" id="saveNextTripDates" type="button">حفظ الموعد</button>
+            <button class="btn primary" id="startNextTrip" type="button">بدء الرحلة</button>
+          </div>
+        </section>
         <section class="action-grid" aria-label="الإجراءات السريعة">
           <button id="addEntryBtn" class="quick-action">
             <span class="qa-icon">＋</span>
@@ -538,6 +551,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="app.js?v=15"></script>
+    <!-- ORIGINAL: <script src="app.js?v=15"></script> -->
+    <script src="app.js?v=16"></script>
   </body>
 </html>

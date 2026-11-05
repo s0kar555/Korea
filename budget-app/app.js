@@ -2,6 +2,10 @@
   "use strict";
 
   const cfg = window.TRIP_CONFIG || {};
+  // Archive URL uses the same existing interface and logic.
+  const koreaArchiveMode = /\/archive\/?$/.test(location.pathname);
+  const koreaReadTable = (table) => koreaArchiveMode ? `korea_archive_${table}` : table;
+  let koreaAcceptingWrites = false;
   const allowedUsers = new Set(["saad", "bayan", "admin"]);
   const moneyFmt = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
@@ -691,8 +695,10 @@
   }
 
   function applyPermissions() {
-    const isAdmin = profile?.role === "admin";
+    // ORIGINAL BEFORE ARCHIVE: const isAdmin = profile?.role === "admin";
+    const isAdmin = koreaAcceptingWrites && profile?.role === "admin";
     els.budgetBtn.classList.toggle("hidden", !isAdmin);
+    els.addEntryBtn.classList.toggle("hidden", !koreaAcceptingWrites);
     els.budgetBtn.parentElement.classList.toggle("single-action", !isAdmin);
   }
 
@@ -1021,7 +1027,8 @@
     }
 
     const snapshots = ledgerSnapshots();
-    const isAdmin = profile?.role === "admin";
+    // ORIGINAL BEFORE ARCHIVE: const isAdmin = profile?.role === "admin";
+    const isAdmin = koreaAcceptingWrites && profile?.role === "admin";
     els.expenseList.innerHTML = list
       .map((e) => {
         const c = categoryById(e.category_id) || {
@@ -1070,10 +1077,27 @@
       .join("");
   }
 
+
+  function renderTripNavigator() {
+    const heading = $("tripStatusLabel");
+    if (!heading || !trip) return;
+    heading.textContent = koreaArchiveMode
+      ? "🔒 رحلة كوريا — أرشيف للقراءة فقط"
+      : (koreaAcceptingWrites ? "✈️ الرحلة الحالية — نشطة" : "📅 الرحلة القادمة — مسودة مقفلة");
+    $("archiveTripLink").classList.toggle("hidden", koreaArchiveMode);
+    $("futureTripLink").classList.toggle("hidden", !koreaArchiveMode);
+    const canPlan = !koreaArchiveMode && !koreaAcceptingWrites && profile?.role === "admin";
+    $("nextTripDates").classList.toggle("hidden", !canPlan);
+    if (canPlan) {
+      $("nextTripStart").value = trip.start_date || "";
+      $("nextTripEnd").value = trip.end_date || "";
+    }
+  }
   function renderAll() {
     if (!trip) return;
     renderSelects();
     applyPermissions();
+    renderTripNavigator();
     renderDashboard();
     renderExpenses();
     renderAnalytics();
@@ -1089,7 +1113,8 @@
     const pageSize = 500;
     for (let from = 0; ; from += pageSize) {
       const result = await db
-        .from("expenses")
+        // ORIGINAL BEFORE ARCHIVE: .from("expenses")
+        .from(koreaReadTable("expenses"))
         .select("*")
         .order("expense_date", { ascending: false })
         .order("created_at", { ascending: false })
@@ -1117,16 +1142,24 @@
     if (!db) return false;
     let lastError = null;
     for (let attempt = 0; attempt <= retries; attempt += 1) {
-      const [tripRes, catRes, expRes, profRes, cashRes] = await Promise.all([
-        db.from("trip").select("*").eq("id", 1).single(),
-        db.from("categories").select("*").order("sort_order"),
+      // ORIGINAL BEFORE ARCHIVE: const [tripRes, catRes, expRes, profRes, cashRes] = await Promise.all([
+      const [tripRes, catRes, expRes, profRes, cashRes, controlRes] = await Promise.all([
+        // ORIGINAL BEFORE ARCHIVE: db.from("trip").select("*").eq("id", 1).single(),
+         db.from(koreaReadTable("trip")).select("*").eq("id", 1).single(),
+        // ORIGINAL BEFORE ARCHIVE: db.from("categories").select("*").order("sort_order"),
+         db.from(koreaReadTable("categories")).select("*").order("sort_order"),
         loadExpenses(),
-        db.from("profiles").select("user_id,username,display_name,role"),
-        db.rpc("get_cash_wallet_v4"),
+        // ORIGINAL BEFORE ARCHIVE: db.from("profiles").select("user_id,username,display_name,role"),
+         db.from(koreaReadTable("profiles")).select("user_id,username,display_name,role"),
+        // ORIGINAL BEFORE ARCHIVE: db.rpc("get_cash_wallet_v4"),
+         db.rpc(koreaArchiveMode ? "get_korea_archive_cash_v1" : "get_cash_wallet_v4"),
+         db.from("trip_control").select("accepting_writes").eq("id", 1).single(),
       ]);
       lastError =
-        tripRes.error || catRes.error || expRes.error || profRes.error || cashRes.error;
+        // ORIGINAL BEFORE ARCHIVE: tripRes.error || catRes.error || expRes.error || profRes.error || cashRes.error;
+         tripRes.error || catRes.error || expRes.error || profRes.error || cashRes.error || controlRes.error;
       if (!lastError) {
+        koreaAcceptingWrites = !koreaArchiveMode && Boolean(controlRes.data?.accepting_writes);
         trip = tripRes.data;
         categories = catRes.data || [];
         cashWalletTotal = round2(num(cashRes.data));
@@ -1193,6 +1226,7 @@
   }
 
   function subscribeRealtime() {
+    if (koreaArchiveMode) return; // Archived rows never change.
     if (realtimeChannel) db.removeChannel(realtimeChannel);
     realtimeChannel = db
       .channel("trip-budget-shared")
@@ -1817,6 +1851,7 @@
 
   async function handleEntry(e) {
     e.preventDefault();
+    if (!koreaAcceptingWrites) { showToast("الرحلة مقفلة للقراءة فقط"); return; }
     const mode = els.entryMode.value;
     const categoryId = Number(els.entryCategory.value);
     const category = categoryById(categoryId);
@@ -1886,6 +1921,7 @@
 
   async function handleEdit(e) {
     e.preventDefault();
+    if (!koreaAcceptingWrites) { showToast("الرحلة مقفلة للقراءة فقط"); return; }
     if (profile?.role !== "admin") return;
     const id = els.editId.value;
     const type = els.editType.value;
@@ -1935,6 +1971,7 @@
 
   async function handleBudgets(e) {
     e.preventDefault();
+    if (!koreaAcceptingWrites) { showToast("الرحلة مقفلة للقراءة فقط"); return; }
     if (profile?.role !== "admin") return;
     const total = round2(num(els.totalBudgetInput.value));
     const prepared = prepareBudgetPayload();
@@ -1964,6 +2001,7 @@
 
   async function handleDelete(e) {
     e.preventDefault();
+    if (!koreaAcceptingWrites) { showToast("الرحلة مقفلة للقراءة فقط"); return; }
     if (profile?.role !== "admin") return;
     const id = els.deleteId.value;
     const submit = els.deleteForm.querySelector('button[type="submit"]');
@@ -2034,6 +2072,28 @@
 
   function bindEvents() {
     els.loginForm.addEventListener("submit", handleLogin);
+
+    $("saveNextTripDates").addEventListener("click", async () => {
+      if (koreaArchiveMode || koreaAcceptingWrites || profile?.role !== "admin") return;
+      const start = $("nextTripStart").value;
+      const end = $("nextTripEnd").value;
+      if (!start || !end || end < start) { showToast("حددي تاريخ بداية ونهاية صحيحين"); return; }
+      const { error } = await db.rpc("set_next_trip_dates_v1", {
+        p_start_date: start, p_end_date: end,
+      });
+      if (error) { console.error(error); showToast("تعذر تغيير التواريخ"); return; }
+      showToast("تم حفظ موعد الرحلة المبدئي");
+      await loadAll({ quiet: true });
+    });
+    $("startNextTrip").addEventListener("click", async () => {
+      if (koreaArchiveMode || koreaAcceptingWrites || profile?.role !== "admin") return;
+      if (!window.confirm("تفعيل الرحلة الجديدة والسماح بإضافة المصاريف والميزانيات؟")) return;
+      const { error } = await db.rpc("activate_next_trip_v1");
+      if (error) { console.error(error); showToast("تعذر تفعيل الرحلة"); return; }
+      showToast("تم تفعيل الرحلة");
+      await loadAll({ quiet: true });
+    });
+
     els.logoutBtn.addEventListener("click", async () => {
       await db.auth.signOut();
       showLogin();
