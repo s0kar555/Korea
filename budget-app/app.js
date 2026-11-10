@@ -3,7 +3,7 @@
 
   const cfg = window.TRIP_CONFIG || {};
   // Archive URL uses the same existing interface and logic.
-  const koreaArchiveMode = /\/archive\/?$/.test(location.pathname);
+  const koreaArchiveMode = /\/archive\/(?:index\.html)?$/.test(location.pathname);
   const koreaReadTable = (table) => koreaArchiveMode ? `korea_archive_${table}` : table;
   let koreaAcceptingWrites = false;
   const allowedUsers = new Set(["saad", "bayan", "admin"]);
@@ -56,6 +56,13 @@
   let summaryCollapsed = false;
   let testDateOverride = null;
   let cashWalletTotal = 0;
+  // Saving for the NEXT trip is independent of current-trip budgets/expenses.
+  let savingsSettings = null;
+  let savingsEntries = [];
+  let savingsReady = false;
+  let savingsError = null;
+  const savingsVisibilityKey = "korea-savings-visible-v1";
+  let savingsVisible = true;
 
   const $ = (id) => document.getElementById(id);
   const els = {};
@@ -70,6 +77,15 @@
     "dateContext",
     "userBadge",
     "logoutBtn",
+    "tripsMenuBtn", "tripsMenu", "settingsMenuBtn", "settingsMenu", "settingsMenuWrap",
+    "returnToCurrentTrip", "savingsVisibleSwitch", "savingsGoalForm", "savingsGoalInput",
+    "saveSavingsGoalBtn", "savingsSection", "savingsLoadError", "savingsContent",
+    "savingsTripDate", "savingsTotal", "savingsGoal", "savingsRemaining",
+    "savingsMoneyPercent", "savingsMoneyBar", "savingsTimePercent", "savingsTimeBar",
+    "savingsDaysRemaining", "savingsRows", "savingsTableTotal", "savingsEntriesCount",
+    "savingsEntryForm", "savingsSourceInput", "savingsAmountInput", "saveSavingsEntryBtn",
+    "savingsActionHeader", "savingsActionFooter", "savingsEditDialog", "savingsEditForm",
+    "savingsEditId", "savingsEditSource", "savingsEditAmount", "saveSavingsEditBtn",
     "testTimeBar",
     "testDate",
     "testPrevDay",
@@ -99,8 +115,6 @@
     "entryDialog",
     "entryForm",
     "entryMode",
-    "modeDirectBtn",
-    "modeBalanceBtn",
     "directAmountFields",
     "balanceAmountFields",
     "entryAmount",
@@ -1069,7 +1083,7 @@
           </div>
           <div class="expense-amount">${money(e.amount)}</div>
           <div class="row-actions">
-            ${isAdmin ? `<button class="row-btn edit-expense" type="button" data-id="${e.id}" title="تعديل">✎</button>` : ""}
+            ${isAdmin ? `<button class="row-btn edit-expense" type="button" data-id="${e.id}" title="تعديل المصروف" aria-label="تعديل المصروف"><svg class="edit-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>` : ""}
             ${isAdmin ? `<button class="row-btn delete delete-expense" type="button" data-id="${e.id}" title="حذف" aria-label="حذف العملية"><svg viewBox="0 0 24 24" class="trash-icon" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7"/></svg></button>` : ""}
           </div>
         </div>`;
@@ -1078,34 +1092,199 @@
   }
 
 
-  function renderTripNavigator() {
-    const heading = $("tripStatusLabel");
-    if (!heading || !trip) return;
-    heading.textContent = koreaArchiveMode
-      ? "🔒 رحلة كوريا — أرشيف للقراءة فقط"
-      : (koreaAcceptingWrites ? "✈️ الرحلة الحالية — نشطة" : "📅 الرحلة القادمة — مسودة مقفلة");
-    $("archiveTripLink").classList.toggle("hidden", koreaArchiveMode);
-    $("futureTripLink").classList.toggle("hidden", !koreaArchiveMode);
-    const canPlan = !koreaArchiveMode && !koreaAcceptingWrites && profile?.role === "admin";
-    $("nextTripDates").classList.toggle("hidden", !canPlan);
-    if (canPlan) {
-      $("nextTripStart").value = trip.start_date || "";
-      $("nextTripEnd").value = trip.end_date || "";
+
+  // ===== Next trip savings (separate from archived/current trip expenses) =====
+  function closeHeaderMenus() {
+    for (const [button, menu] of [
+      [els.tripsMenuBtn, els.tripsMenu],
+      [els.settingsMenuBtn, els.settingsMenu],
+    ]) {
+      menu?.classList.add("hidden");
+      button?.setAttribute("aria-expanded", "false");
     }
   }
+
+  function initHeaderMenus() {
+    const toggle = (button, menu) => {
+      const wasClosed = menu.classList.contains("hidden");
+      closeHeaderMenus();
+      menu.classList.toggle("hidden", !wasClosed);
+      button.setAttribute("aria-expanded", String(wasClosed));
+    };
+    els.tripsMenuBtn.addEventListener("click", () => toggle(els.tripsMenuBtn, els.tripsMenu));
+    els.settingsMenuBtn.addEventListener("click", () => toggle(els.settingsMenuBtn, els.settingsMenu));
+    document.addEventListener("pointerdown", (e) => {
+      if (!e.target.closest(".header-menu")) closeHeaderMenus();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeHeaderMenus();
+    });
+    els.savingsVisibleSwitch.addEventListener("change", () => {
+      savingsVisible = els.savingsVisibleSwitch.checked;
+      try { localStorage.setItem(`${savingsVisibilityKey}:${currentUser?.id}`, savingsVisible ? "on" : "off"); } catch (_) {}
+      renderSavings();
+    });
+  }
+
+  async function loadSavings() {
+    if (koreaArchiveMode) return;
+    try {
+      const [settingsRes, entriesRes] = await Promise.all([
+        db.from("trip_savings_settings").select("id,goal_amount,savings_start_date,trip_start_date").eq("id", 1).single(),
+        db.from("trip_savings_entries").select("id,source,amount,created_at").order("created_at", { ascending: false }).order("id", { ascending: false }),
+      ]);
+      if (settingsRes.error || entriesRes.error) throw settingsRes.error || entriesRes.error;
+      savingsSettings = settingsRes.data;
+      savingsEntries = entriesRes.data || [];
+      savingsReady = true;
+      savingsError = null;
+    } catch (error) {
+      console.warn("Savings data unavailable:", error);
+      savingsReady = false;
+      savingsError = error;
+      savingsSettings = null;
+      savingsEntries = [];
+    }
+  }
+
+  function savingDateUtc(dateKey) {
+    const [year, month, day] = String(dateKey).split("-").map(Number);
+    return Date.UTC(year, month - 1, day);
+  }
+
+  function renderSavings() {
+    const archive = koreaArchiveMode;
+    els.returnToCurrentTrip.classList.toggle("hidden", !archive);
+    els.settingsMenuWrap.classList.toggle("hidden", archive);
+    els.savingsSection.classList.toggle("hidden", archive || !savingsVisible);
+    const admin = profile?.role === "admin";
+    els.savingsGoalForm.classList.toggle("hidden", !admin || !savingsReady);
+    if (savingsReady && admin) {
+      const savedGoal = round2(num(savingsSettings.goal_amount));
+      els.savingsGoalInput.value = savedGoal > 0 ? moneyValue(savedGoal) : "";
+    }
+    if (archive || !savingsVisible) return;
+    els.savingsEntryForm.classList.toggle("hidden", !admin);
+    els.savingsActionHeader.classList.toggle("hidden", !admin);
+    els.savingsActionFooter.classList.toggle("hidden", !admin);
+    els.savingsLoadError.classList.toggle("hidden", savingsReady);
+    els.savingsContent.classList.toggle("hidden", !savingsReady);
+    if (!savingsReady) {
+      els.savingsLoadError.textContent = admin
+        ? "تعذّر تحميل تجميع الرحلة. يجب تطبيق ملف supabase-trip-savings.sql داخل Supabase أولًا، والتأكد من صلاحيات الجداول."
+        : "بيانات تجميع الرحلة غير متاحة حاليًا.";
+      return;
+    }
+
+    const goal = round2(num(savingsSettings.goal_amount));
+    const total = round2(savingsEntries.reduce((sum, row) => sum + num(row.amount), 0));
+    const remaining = round2(Math.max(0, goal - total));
+    const moneyPercent = goal > 0 ? total / goal * 100 : 0;
+    els.savingsTotal.textContent = money(total);
+    els.savingsGoal.textContent = goal > 0 ? money(goal) : "لم يُحدّد بعد";
+    els.savingsRemaining.textContent = goal > 0 ? money(remaining) : "—";
+    els.savingsMoneyPercent.textContent = goal > 0 ? `${pctFmt.format(moneyPercent)}%` : "حدّد الهدف من الترس";
+    els.savingsMoneyBar.style.width = `${Math.min(100, Math.max(0, moneyPercent))}%`;
+    const tripStart = savingsSettings.trip_start_date;
+    const savingsStart = savingsSettings.savings_start_date;
+    els.savingsTripDate.textContent = `موعد الرحلة المتوقع: ${tripStart}`;
+    const today = keyFromDate(new Date());
+    const oneDay = 86400000;
+    const fullDays = Math.max(1, Math.round((savingDateUtc(tripStart) - savingDateUtc(savingsStart)) / oneDay));
+    const remainingDays = Math.max(0, Math.ceil((savingDateUtc(tripStart) - savingDateUtc(today)) / oneDay));
+    const remainingPct = Math.max(0, Math.min(100, remainingDays / fullDays * 100));
+    els.savingsTimePercent.textContent = `${pctFmt.format(remainingPct)}%`;
+    els.savingsTimeBar.style.width = `${remainingPct}%`;
+    els.savingsDaysRemaining.textContent = remainingDays ? `متبقي ${integerFmt.format(remainingDays)} يوم على الرحلة` : "وصل موعد الرحلة المتوقع";
+
+    els.savingsEntriesCount.textContent = `${integerFmt.format(savingsEntries.length)} عملية`;
+    els.savingsTableTotal.textContent = money(total);
+    els.savingsRows.innerHTML = savingsEntries.length
+      ? savingsEntries.map((row) => `<tr><td>${escapeHtml(row.source)}</td><td class="savings-amount">${escapeHtml(formatAmount(row.amount))}</td><td class="savings-row-date">${escapeHtml(new Date(row.created_at).toLocaleDateString("ar-SA-u-ca-gregory", { day: "numeric", month: "short", year: "numeric" }))}</td>${admin ? `<td class="savings-row-actions"><button type="button" class="row-btn edit-saving" data-id="${row.id}" title="تعديل المبلغ" aria-label="تعديل المبلغ"><svg class="edit-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button type="button" class="row-btn delete delete-saving" data-id="${row.id}" title="حذف المبلغ" aria-label="حذف المبلغ"><svg viewBox="0 0 24 24" class="trash-icon" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7"/></svg></button></td>` : ""}</tr>`).join("")
+      : `<tr><td colspan="${admin ? 4 : 3}" class="savings-empty">لا توجد مبالغ مُضافة حتى الآن</td></tr>`;
+  }
+
+  function initSavingsEvents() {
+    bindMoneyInput(els.savingsGoalInput);
+    bindMoneyInput(els.savingsAmountInput);
+    bindMoneyInput(els.savingsEditAmount);
+    els.savingsGoalForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!savingsReady || profile?.role !== "admin") return;
+      const goal = round2(num(els.savingsGoalInput.value));
+      if (goal <= 0) { showToast("الهدف المالي يجب أن يكون أكبر من صفر"); return; }
+      setBusy(els.saveSavingsGoalBtn, true);
+      const { data, error } = await db.from("trip_savings_settings").update({ goal_amount: goal }).eq("id", 1).select("id").single();
+      setBusy(els.saveSavingsGoalBtn, false);
+      if (error || !data) { console.error(error); showToast("تعذّر حفظ الهدف المالي"); return; }
+      showToast("تم حفظ هدف الرحلة القادمة");
+      await loadSavings();
+      renderSavings();
+    });
+    els.savingsEntryForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!savingsReady || profile?.role !== "admin") return;
+      const source = els.savingsSourceInput.value.trim();
+      const amount = round2(num(els.savingsAmountInput.value));
+      if (!source || source.length > 120 || amount <= 0) { showToast("أدخل مصدرًا ومبلغًا صحيحين"); return; }
+      setBusy(els.saveSavingsEntryBtn, true);
+      const { data, error } = await db.from("trip_savings_entries").insert({ source, amount }).select("id").single();
+      setBusy(els.saveSavingsEntryBtn, false);
+      if (error || !data) { console.error(error); showToast("تعذّر إضافة المبلغ"); return; }
+      els.savingsEntryForm.reset();
+      showToast("تم إضافة المبلغ إلى تجميع الرحلة");
+      await loadSavings();
+      renderSavings();
+    });
+    els.savingsRows.addEventListener("click", async (event) => {
+      if (!savingsReady || profile?.role !== "admin") return;
+      const edit = event.target.closest(".edit-saving");
+      const remove = event.target.closest(".delete-saving");
+      const button = edit || remove;
+      if (!button) return;
+      const row = savingsEntries.find((item) => String(item.id) === String(button.dataset.id));
+      if (!row) return;
+      if (edit) {
+        els.savingsEditId.value = row.id;
+        els.savingsEditSource.value = row.source;
+        setMoneyField(els.savingsEditAmount, row.amount);
+        openDialog(els.savingsEditDialog);
+      } else if (window.confirm(`حذف مبلغ ${money(row.amount)} من مصدر «${row.source}»؟`)) {
+        const { error } = await db.from("trip_savings_entries").delete().eq("id", row.id).select("id").single();
+        if (error) { console.error(error); showToast("تعذّر حذف المبلغ"); return; }
+        showToast("تم حذف المبلغ");
+        await loadSavings();
+        renderSavings();
+      }
+    });
+    els.savingsEditForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!savingsReady || profile?.role !== "admin") return;
+      const id = els.savingsEditId.value;
+      const source = els.savingsEditSource.value.trim();
+      const amount = round2(num(els.savingsEditAmount.value));
+      if (!source || source.length > 120 || amount <= 0) { showToast("أدخل مصدرًا ومبلغًا صحيحين"); return; }
+      setBusy(els.saveSavingsEditBtn, true);
+      const { error } = await db.from("trip_savings_entries").update({ source, amount }).eq("id", id).select("id").single();
+      setBusy(els.saveSavingsEditBtn, false);
+      if (error) { console.error(error); showToast("تعذّر تعديل المبلغ"); return; }
+      closeDialog(els.savingsEditDialog);
+      showToast("تم تعديل المبلغ");
+      await loadSavings();
+      renderSavings();
+    });
+  }
+
   function renderAll() {
     if (!trip) return;
     renderSelects();
     applyPermissions();
-    renderTripNavigator();
+    renderSavings();
     renderDashboard();
     renderExpenses();
     renderAnalytics();
     updateEntryPreview();
-    if (els.editDialog.open) {
-      if (els.editType.value === "reconciliation") updateEditReconcilePreview();
-      else updateEditDirectGuard();
-    }
+    if (els.editDialog.open) updateEditDirectGuard();
   }
 
   async function loadExpenses() {
@@ -1173,6 +1352,7 @@
         profiles = profRes.data || [];
         profile = profiles.find((p) => p.user_id === currentUser?.id) || null;
         ensureLedgerDate();
+        await loadSavings();
         renderAll();
         return true;
       }
@@ -1194,6 +1374,9 @@
 
   async function showApp(session) {
     currentUser = session.user;
+    try { savingsVisible = localStorage.getItem(`${savingsVisibilityKey}:${currentUser.id}`) !== "off"; }
+    catch (_) { savingsVisible = true; }
+    els.savingsVisibleSwitch.checked = savingsVisible;
     els.loginView.classList.add("hidden");
     els.appView.classList.remove("hidden");
     await ensureCurrentProfile();
@@ -1212,12 +1395,18 @@
     expenses = [];
     profiles = [];
     cashWalletTotal = 0;
+    savingsSettings = null;
+    savingsEntries = [];
+    savingsReady = false;
+    savingsError = null;
+    closeHeaderMenus();
     clearTimeout(reloadTimer);
     [
       els.entryDialog,
       els.editDialog,
       els.budgetDialog,
       els.deleteDialog,
+      els.savingsEditDialog,
     ].forEach(closeDialog);
     if (realtimeChannel && db) db.removeChannel(realtimeChannel);
     realtimeChannel = null;
@@ -1250,6 +1439,8 @@
         { event: "*", schema: "public", table: "cash_wallet" },
         scheduleReload,
       )
+      .on("postgres_changes", { event: "*", schema: "public", table: "trip_savings_settings" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "trip_savings_entries" }, scheduleReload)
       .subscribe();
   }
   function scheduleReload() {
@@ -1310,23 +1501,19 @@
     if (dialog?.open) dialog.close();
   }
 
-  function setEntryMode(mode, { clearValues = false } = {}) {
-    const balance = mode === "reconciliation";
+  function setEntryMode(_mode, { clearValues = false } = {}) {
+    // حساب الفرق/تسوية المحفظة معطّل عمدًا. الإدخال الجديد مباشر فقط.
     if (clearValues) {
       els.entryAmount.value = "";
-      els.entryBalance.value = "";
-      els.reconcileDifference.textContent = "—";
       els.entryGuard.className = "inline-note";
       els.entryGuard.textContent = "";
     }
-    els.entryMode.value = balance ? "reconciliation" : "direct";
-    els.modeDirectBtn.classList.toggle("active", !balance);
-    els.modeBalanceBtn.classList.toggle("active", balance);
-    els.directAmountFields.classList.toggle("hidden", balance);
-    els.balanceAmountFields.classList.toggle("hidden", !balance);
-    els.entryAmount.required = !balance;
-    els.entryBalance.required = balance;
-    updateEntryPreview();
+    els.entryMode.value = "direct";
+    els.directAmountFields.classList.remove("hidden");
+    els.balanceAmountFields.classList.add("hidden");
+    els.entryAmount.required = true;
+    els.entryBalance.required = false;
+    updateDirectPreview();
   }
 
   function expensesThrough(date, excludeId = null) {
@@ -1505,8 +1692,8 @@
 
   function updateEntryPreview() {
     if (!trip || !els.entryMode) return;
-    if (els.entryMode.value === "reconciliation") updateBalancePreview();
-    else updateDirectPreview();
+    // لا نسمح بإنشاء مصروف جديد عن طريق حساب الفرق.
+    updateDirectPreview();
   }
 
   function updateBudgetDifference() {
@@ -1688,19 +1875,13 @@
     els.editNote.value = e.note || "";
     els.editWarning.className = "inline-note";
     els.editWarning.textContent = "";
-    if (e.entry_type === "reconciliation") {
-      els.editTitle.textContent = "تعديل الفرق";
-      els.editDirectFields.classList.add("hidden");
-      els.editReconcileFields.classList.remove("hidden");
-      setMoneyField(els.editReportedBalance, e.reported_balance);
-      updateEditReconcilePreview();
-    } else {
-      els.editTitle.textContent = "تعديل المصروف";
-      els.editDirectFields.classList.remove("hidden");
-      els.editReconcileFields.classList.add("hidden");
-      setMoneyField(els.editAmount, e.amount);
-      updateEditDirectGuard();
-    }
+    // السجلات القديمة من نوع فرق تبقى للعرض، لكن أي تعديل يحفظ مصروفًا مباشرًا.
+    els.editTitle.textContent = "تعديل المصروف";
+    els.editType.value = "direct";
+    els.editDirectFields.classList.remove("hidden");
+    els.editReconcileFields.classList.add("hidden");
+    setMoneyField(els.editAmount, e.amount);
+    updateEditDirectGuard();
     openDialog(els.editDialog);
   }
 
@@ -1709,7 +1890,7 @@
     syncEditCashTargetField();
     const id = els.editId.value;
     const old = expenses.find((x) => x.id === id);
-    if (!old || old.entry_type !== "direct") return;
+    if (!old) return;
     const c = categoryById(els.editCategory.value);
     const charged = selectedCashTarget(c?.id, els.editCashTarget?.value);
     const submit = els.editForm.querySelector('button[type="submit"]');
@@ -1852,7 +2033,6 @@
   async function handleEntry(e) {
     e.preventDefault();
     if (!koreaAcceptingWrites) { showToast("الرحلة مقفلة للقراءة فقط"); return; }
-    const mode = els.entryMode.value;
     const categoryId = Number(els.entryCategory.value);
     const category = categoryById(categoryId);
     const charged = selectedCashTarget(categoryId, els.entryCashTarget?.value);
@@ -1870,38 +2050,21 @@
       showToast("اختر التصنيف الذي صُرف عليه مبلغ الكاش.");
       return;
     }
-    let payload, successText;
-    if (mode === "reconciliation") {
-      const actual = round2(num(els.entryBalance.value));
-      const expected = expectedBalanceFor(expenseDate);
-      const diff = round2(expected - actual);
-      if (diff <= 0) return;
-      payload = {
-        category_id: categoryId,
-        charged_category_id: charged ? Number(charged.id) : null,
-        amount: diff,
-        expense_date: expenseDate,
-        entry_type: "reconciliation",
-        reported_balance: actual,
-        note,
-        created_by: currentUser.id,
-      };
-      successText = `تم تسجيل ${money(diff)}`;
-    } else {
-      const amount = round2(num(els.entryAmount.value));
-      if (amount <= 0) return;
-      payload = {
-        category_id: categoryId,
-        charged_category_id: charged ? Number(charged.id) : null,
-        amount,
-        expense_date: expenseDate,
-        entry_type: "direct",
-        reported_balance: null,
-        note,
-        created_by: currentUser.id,
-      };
-      successText = "تم تسجيل المصروف";
-    }
+    // ميزة حساب الفرق معطّلة. لا يُنشأ إلا نوع direct في قاعدة البيانات.
+    // كود reconciliation القديم أُزيل من مسار الإدخال لمنع الاستعمال عرضيًا.
+    const amount = round2(num(els.entryAmount.value));
+    if (amount <= 0) { showToast("أدخل مبلغًا أكبر من صفر"); return; }
+    const payload = {
+      category_id: categoryId,
+      charged_category_id: charged ? Number(charged.id) : null,
+      amount,
+      expense_date: expenseDate,
+      entry_type: "direct",
+      reported_balance: null,
+      note,
+      created_by: currentUser.id,
+    };
+    const successText = "تم تسجيل المصروف";
     const submit = els.entrySubmit;
     setBusy(submit, true);
     const { error } = await db.from("expenses").insert(payload);
@@ -1924,7 +2087,6 @@
     if (!koreaAcceptingWrites) { showToast("الرحلة مقفلة للقراءة فقط"); return; }
     if (profile?.role !== "admin") return;
     const id = els.editId.value;
-    const type = els.editType.value;
     const categoryId = Number(els.editCategory.value);
     const charged = selectedCashTarget(categoryId, els.editCashTarget?.value);
     const payload = {
@@ -1941,19 +2103,11 @@
       showToast("التاريخ يجب أن يكون من 1 إلى 30 أكتوبر فقط.");
       return;
     }
-    if (type === "reconciliation") {
-      const expected = expectedBalanceFor(payload.expense_date, id);
-      const actual = round2(num(els.editReportedBalance.value));
-      const amount = round2(expected - actual);
-      if (amount <= 0) return;
-      payload.amount = amount;
-      payload.reported_balance = actual;
-      payload.entry_type = "reconciliation";
-    } else {
-      payload.amount = round2(num(els.editAmount.value));
-      payload.reported_balance = null;
-      payload.entry_type = "direct";
-    }
+    // تحرير المصروفات دائمًا عبر القيمة المباشرة؛ حتى العمليات القديمة من نوع فرق.
+    payload.amount = round2(num(els.editAmount.value));
+    payload.reported_balance = null;
+    payload.entry_type = "direct";
+    if (payload.amount <= 0) { showToast("أدخل مبلغًا أكبر من صفر"); return; }
     const submit = els.editForm.querySelector('button[type="submit"]');
     setBusy(submit, true);
     const { error } = await db.from("expenses").update(payload).eq("id", id);
@@ -2073,26 +2227,10 @@
   function bindEvents() {
     els.loginForm.addEventListener("submit", handleLogin);
 
-    $("saveNextTripDates").addEventListener("click", async () => {
-      if (koreaArchiveMode || koreaAcceptingWrites || profile?.role !== "admin") return;
-      const start = $("nextTripStart").value;
-      const end = $("nextTripEnd").value;
-      if (!start || !end || end < start) { showToast("حددي تاريخ بداية ونهاية صحيحين"); return; }
-      const { error } = await db.rpc("set_next_trip_dates_v1", {
-        p_start_date: start, p_end_date: end,
-      });
-      if (error) { console.error(error); showToast("تعذر تغيير التواريخ"); return; }
-      showToast("تم حفظ موعد الرحلة المبدئي");
-      await loadAll({ quiet: true });
-    });
-    $("startNextTrip").addEventListener("click", async () => {
-      if (koreaArchiveMode || koreaAcceptingWrites || profile?.role !== "admin") return;
-      if (!window.confirm("تفعيل الرحلة الجديدة والسماح بإضافة المصاريف والميزانيات؟")) return;
-      const { error } = await db.rpc("activate_next_trip_v1");
-      if (error) { console.error(error); showToast("تعذر تفعيل الرحلة"); return; }
-      showToast("تم تفعيل الرحلة");
-      await loadAll({ quiet: true });
-    });
+    // تم تعطيل أدوات تحديد موعد الرحلة وتفعيلها من الواجهة.
+    // الإدارة المستقبلية للرحلات تتم عبر SQL أو إعدادات النظام فقط.
+    initHeaderMenus();
+    initSavingsEvents();
 
     els.logoutBtn.addEventListener("click", async () => {
       await db.auth.signOut();
@@ -2109,16 +2247,7 @@
       openDialog(els.entryDialog);
       setTimeout(() => els.entryAmount.focus(), 50);
     });
-    els.modeDirectBtn.addEventListener("click", () => {
-      if (els.entryMode.value !== "direct")
-        setEntryMode("direct", { clearValues: true });
-      setTimeout(() => els.entryAmount.focus(), 20);
-    });
-    els.modeBalanceBtn.addEventListener("click", () => {
-      if (els.entryMode.value !== "reconciliation")
-        setEntryMode("reconciliation", { clearValues: true });
-      setTimeout(() => els.entryBalance.focus(), 20);
-    });
+    // أزرار حساب الفرق/تغيير طريقة التسجيل معطلة ومعلّقة في HTML.
     els.entryCategory.addEventListener("change", () => {
       syncEntryCashTargetField();
       updateEntryPreview();
@@ -2129,7 +2258,6 @@
       updateEntryPreview();
     });
     bindMoneyInput(els.entryAmount, updateEntryPreview);
-    bindMoneyInput(els.entryBalance, updateEntryPreview);
     els.entryForm.addEventListener("submit", handleEntry);
 
     els.budgetBtn.addEventListener("click", openBudgets);
@@ -2208,20 +2336,16 @@
     });
 
     bindMoneyInput(els.editAmount, updateEditDirectGuard);
-    bindMoneyInput(els.editReportedBalance, updateEditReconcilePreview);
     els.editCategory.addEventListener("change", () => {
       syncEditCashTargetField();
-      if (els.editType.value === "reconciliation") updateEditReconcilePreview();
-      else updateEditDirectGuard();
+      updateEditDirectGuard();
     });
     els.editCashTarget.addEventListener("change", () => {
-      if (els.editType.value === "reconciliation") updateEditReconcilePreview();
-      else updateEditDirectGuard();
+      updateEditDirectGuard();
     });
     els.editDate.addEventListener("change", () => {
       els.editDate.value = clampTripDate(els.editDate.value);
-      if (els.editType.value === "reconciliation") updateEditReconcilePreview();
-      else updateEditDirectGuard();
+      updateEditDirectGuard();
     });
     els.editForm.addEventListener("submit", handleEdit);
 

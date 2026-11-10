@@ -14,7 +14,7 @@
     <link rel="icon" type="image/png" href="app-icon.png?v=8" />
     <link rel="apple-touch-icon" href="app-icon.png?v=8" />
     <link rel="manifest" href="manifest.webmanifest?v=8" />
-    <link rel="stylesheet" href="styles.css?v=8" />
+    <link rel="stylesheet" href="styles.css?v=10" />
   </head>
   <body>
     <div id="toast" class="toast" aria-live="polite"></div>
@@ -59,11 +59,39 @@
         <header class="topbar">
           <div>
             <p class="eyebrow hidden" id="tripPhase"></p>
-            <h1>ميزانية الرحلة</h1>
+            <h1 class="app-heading"><img src="app-icon.png?v=8" alt="" aria-hidden="true" /><span>ميزانية الرحلة</span></h1>
             <p id="dateContext" class="muted"></p>
+            <a id="returnToCurrentTrip" class="archive-back-link hidden" href="./">العودة للرحلة القادمة</a>
           </div>
           <div class="top-actions">
             <span id="userBadge" class="user-badge"></span>
+            <div class="header-menu">
+              <button id="tripsMenuBtn" class="icon-btn" type="button" title="الرحلات السابقة" aria-label="الرحلات السابقة" aria-expanded="false" aria-controls="tripsMenu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17h16M4 17l-2-5 2-1 4 3 5-9a2 2 0 0 1 3-1l1 1-5 11 6-1 3 2v2H4Z"/></svg>
+              </button>
+              <nav id="tripsMenu" class="header-popover hidden" aria-label="الرحلات السابقة">
+                <span class="popover-title">أرشيف الرحلات</span>
+                <a class="header-menu-link" href="archive/">رحلة كوريا 2026</a>
+              </nav>
+            </div>
+            <div class="header-menu" id="settingsMenuWrap">
+              <button id="settingsMenuBtn" class="icon-btn" type="button" title="الإعدادات" aria-label="الإعدادات" aria-expanded="false" aria-controls="settingsMenu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 3.5h4.8l.6 2.2 1.8.8 2-.9 2.5 4.2-1.7 1.6v2.2l1.7 1.6-2.5 4.2-2-.9-1.8.8-.6 2.2H9.6L9 19.3l-1.8-.8-2 .9-2.5-4.2 1.7-1.6v-2.2L2.7 9.8l2.5-4.2 2 .9L9 5.7l.6-2.2Z"/><circle cx="12" cy="12.5" r="3"/></svg>
+              </button>
+              <div id="settingsMenu" class="header-popover settings-popover hidden">
+                <span class="popover-title">الإعدادات</span>
+                <label class="settings-toggle" for="savingsVisibleSwitch">
+                  <span>تجميع الرحلة</span>
+                  <input id="savingsVisibleSwitch" type="checkbox" role="switch" checked />
+                  <span class="switch-track" aria-hidden="true"></span>
+                </label>
+                <form id="savingsGoalForm" class="settings-goal-form hidden">
+                  <label for="savingsGoalInput">الهدف المالي للرحلة القادمة</label>
+                  <div class="money-input"><input id="savingsGoalInput" class="money-number" type="text" inputmode="decimal" autocomplete="off" placeholder="مثال: 20,000" required /><b>ر.س</b></div>
+                  <button id="saveSavingsGoalBtn" class="btn primary" type="submit">حفظ الهدف</button>
+                </form>
+              </div>
+            </div>
             <button
               id="logoutBtn"
               class="icon-btn"
@@ -95,18 +123,6 @@
         <!-- OPTIONAL TEST DATE CONTROLS — END -->
 
 
-        <!-- Added navigation only; original UI below is untouched. -->
-        <section id="tripSwitcher" class="section-card" style="padding:12px 16px;margin:12px 0;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
-          <strong id="tripStatusLabel">رحلاتي</strong>
-          <a class="btn" id="archiveTripLink" href="archive/">أرشيف كوريا</a>
-          <a class="btn hidden" id="futureTripLink" href="./">العودة للرحلة القادمة</a>
-          <div id="nextTripDates" class="hidden" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-            <label>من <input id="nextTripStart" type="date"></label>
-            <label>إلى <input id="nextTripEnd" type="date"></label>
-            <button class="btn" id="saveNextTripDates" type="button">حفظ الموعد</button>
-            <button class="btn primary" id="startNextTrip" type="button">بدء الرحلة</button>
-          </div>
-        </section>
         <section class="action-grid" aria-label="الإجراءات السريعة">
           <button id="addEntryBtn" class="quick-action">
             <span class="qa-icon">＋</span>
@@ -116,6 +132,32 @@
             <span class="qa-icon">⚙</span>
             <span><b>الميزانيات</b></span>
           </button>
+        </section>
+
+        <section id="savingsSection" class="section-card savings-section hidden" aria-labelledby="savingsTitle">
+          <div class="section-head savings-section-head">
+            <div><p class="savings-overline">الاستعداد للرحلة القادمة</p><h2 id="savingsTitle">تجميع الرحلة</h2></div>
+            <span id="savingsTripDate" class="savings-date"></span>
+          </div>
+          <div id="savingsLoadError" class="savings-error hidden" role="status"></div>
+          <div id="savingsContent">
+            <div class="savings-stats">
+              <div class="saving-stat saving-stat-total"><span>إجمالي المبلغ المجمّع</span><strong id="savingsTotal">—</strong></div>
+              <div class="saving-stat"><span>الهدف المالي</span><strong id="savingsGoal">—</strong></div>
+              <div class="saving-stat"><span>المتبقي على الهدف</span><strong id="savingsRemaining">—</strong></div>
+            </div>
+            <div class="savings-progress-grid">
+              <div class="savings-progress-block"><div class="savings-progress-label"><span>نسبة اكتمال المبلغ</span><strong id="savingsMoneyPercent">—</strong></div><div class="savings-progress-track"><i id="savingsMoneyBar"></i></div></div>
+              <div class="savings-progress-block"><div class="savings-progress-label"><span>نسبة المدة المتبقية</span><strong id="savingsTimePercent">—</strong></div><div class="savings-progress-track time-track"><i id="savingsTimeBar"></i></div><small id="savingsDaysRemaining" class="muted"></small></div>
+            </div>
+            <div class="savings-table-header"><h3>سجل المبالغ</h3><span id="savingsEntriesCount" class="muted"></span></div>
+            <form id="savingsEntryForm" class="savings-entry-form hidden">
+              <label class="field"><span>مصدر المبلغ</span><input id="savingsSourceInput" type="text" maxlength="120" placeholder="مثل: الراتب، ادخار شهري، مكافأة" required /></label>
+              <label class="field"><span>المبلغ</span><div class="money-input"><input id="savingsAmountInput" class="money-number" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" required /><b>ر.س</b></div></label>
+              <button id="saveSavingsEntryBtn" class="btn primary" type="submit">إضافة مبلغ</button>
+            </form>
+            <div class="savings-table-wrap"><table class="savings-table"><thead><tr><th scope="col">المصدر</th><th scope="col">المبلغ (ر.س)</th><th scope="col">التاريخ</th><th id="savingsActionHeader" scope="col" class="hidden">إجراء</th></tr></thead><tbody id="savingsRows"></tbody><tfoot><tr><th scope="row">الإجمالي</th><td id="savingsTableTotal">—</td><td></td><td id="savingsActionFooter" class="hidden"></td></tr></tfoot></table></div>
+          </div>
         </section>
 
         <section id="summaryArea" class="summary-area"></section>
@@ -338,6 +380,8 @@
           </button>
         </div>
 
+        <!-- ميزة حساب الفرق معطّلة: تسجيل المصروفات مباشر على البنود فقط.
+             تم الاحتفاظ بواجهتها هنا كتعليق للرجوع إليها عند الحاجة.
         <div
           class="entry-mode-switch"
           role="tablist"
@@ -360,6 +404,7 @@
             حساب الفرق
           </button>
         </div>
+                -->
         <input id="entryMode" type="hidden" value="direct" />
 
         <div id="directAmountFields">
@@ -378,6 +423,7 @@
           </label>
         </div>
 
+        <!-- حساب الفرق معطّل؛ هذا القسم مخفي للحفاظ على توافق السجلات القديمة. -->
         <div id="balanceAmountFields" class="hidden">
           <label class="field">
             <span>المبلغ المتبقي</span>
@@ -531,6 +577,16 @@
       </form>
     </dialog>
 
+    <dialog id="savingsEditDialog" class="modal">
+      <form id="savingsEditForm" class="modal-card wide">
+        <div class="modal-head"><h3>تعديل مبلغ مجمّع</h3><button type="button" class="close-btn" data-close="savingsEditDialog" aria-label="إغلاق">×</button></div>
+        <input id="savingsEditId" type="hidden" />
+        <label class="field"><span>المصدر</span><input id="savingsEditSource" type="text" maxlength="120" required /></label>
+        <label class="field"><span>المبلغ</span><div class="money-input"><input id="savingsEditAmount" class="money-number" type="text" inputmode="decimal" autocomplete="off" required /><b>ر.س</b></div></label>
+        <button id="saveSavingsEditBtn" class="btn primary" type="submit">حفظ التعديل</button>
+      </form>
+    </dialog>
+
     <dialog id="deleteDialog" class="modal small-modal">
       <form id="deleteForm" method="dialog" class="modal-card">
         <div class="modal-head">
@@ -552,6 +608,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <!-- ORIGINAL: <script src="app.js?v=15"></script> -->
-    <script src="app.js?v=16"></script>
+    <script src="app.js?v=18"></script>
   </body>
 </html>
